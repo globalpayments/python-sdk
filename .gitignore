@@ -1,0 +1,7 @@
+.idea/
+.vscode/
+docs/
+GlobalPayments.Api.egg-info/
+__pycache__/
+
+*.pyc

@@ -1,0 +1,2 @@
+class TableServiceConnector(object):
+    pass
