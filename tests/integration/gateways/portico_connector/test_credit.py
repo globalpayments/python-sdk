@@ -356,3 +356,16 @@ class IntegrationGatewaysPorticoConnectorCreditTests(unittest.TestCase):
 
         self.assertNotEqual(None, void_response)
         self.assertEqual('00', void_response.response_code)
+
+    def test_check_crypto_gold_standard(self):
+        gold_config = ServicesConfig()
+        gold_config.secret_api_key = 'skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A'
+        gold_config.service_url = 'https://cert.api2-c.heartlandportico.com'
+
+        ServicesContainer.configure(gold_config, 'gold standard')
+        response = self.card.authorize(10)\
+            .with_currency('USD')\
+            .with_allow_duplicates(True)\
+            .execute('gold standard')
+        self.assertNotEqual(None, response)
+        self.assertEqual('00', response.response_code)

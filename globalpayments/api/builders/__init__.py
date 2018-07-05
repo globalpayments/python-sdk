@@ -355,7 +355,8 @@ class RecurringBuilder(TransactionBuilder):
     def __init__(self, transaction_type, entity=None):
         TransactionBuilder.__init__(self, transaction_type)
         self.entity = entity
-        self.key = entity.key
+        if entity is not None:
+            self.key = entity.key
         self.search_criteria = {}
 
     def execute(self, config_name=None):

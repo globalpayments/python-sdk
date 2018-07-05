@@ -1,7 +1,7 @@
 '''
 Test reporting
 '''
-
+import datetime
 import unittest
 from globalpayments.api import ServicesConfig, ServicesContainer
 from globalpayments.api.services import ReportingService
@@ -37,3 +37,15 @@ class IntegrationGatewaysPorticoConnectorEbtTests(unittest.TestCase):
 
             self.assertNotEqual(None, response)
             self.assertEqual('00', response.gateway_response_code)
+
+    def test_check_crypto_gold_standard(self):
+        gold_config = ServicesConfig()
+        gold_config.secret_api_key = 'skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A'
+        gold_config.service_url = 'https://cert.api2-c.heartlandportico.com'
+
+        ServicesContainer.configure(gold_config, 'gold standard')
+        summary = ReportingService.activity()\
+            .with_start_date(datetime.datetime.today() + datetime.timedelta(days=-7))\
+            .with_end_date(datetime.datetime.today() + datetime.timedelta(days=-1))\
+            .execute('gold standard')
+        self.assertNotEqual(None, summary)

@@ -33,7 +33,7 @@ class IntegrationGatewaysPorticoConnectorCertificationEcommerceTests(
 
     ServicesContainer.configure(config, 'ecommerce')
 
-    use_tokens = False
+    use_tokens = True
 
     def test_000_close_batch(self):
         try:

@@ -135,7 +135,7 @@ class PayPlanConnector(RestGateway):
                 self._build_schedule(request, builder.entity,
                                      builder.transaction_type)
         elif builder.transaction_type is TransactionType.Search:
-            for key, value in builder.search_criteria:
+            for key, value in builder.search_criteria.iteritems():
                 request[key] = value
 
         response = self.do_transaction(
@@ -233,9 +233,7 @@ class PayPlanConnector(RestGateway):
 
         if isinstance(builder.entity, Schedule):
             return '{}{}'.format(
-                'searchSchedules' \
-                    if builder.transaction_type == TransactionType.Search \
-                    else 'schedules',
+                'searchSchedules' if builder.transaction_type == TransactionType.Search else 'schedules',
                 suffix
             )
 
@@ -562,10 +560,18 @@ class PayPlanConnector(RestGateway):
         return schedule
 
     def _has_token(self, payment_method):
-        if isinstance(payment_method,
-                      Tokenizable) and payment_method.token is not None:
+        if self._has_attr(payment_method, 'token') and payment_method.token is not None:
             return True, payment_method.token
         return False, None
+
+    def _has_attr(self, obj, attr):
+        if not obj:
+            return False
+
+        try:
+            return getattr(obj, attr)
+        except AttributeError as _exc:
+            return False
 
 
 class PorticoConnector(XmlGateway):
@@ -708,15 +714,20 @@ class PorticoConnector(XmlGateway):
             et.SubElement(manual_entry, 'TokenValue' if has_token else
                           'CardNbr').text = token_value or card.number
 
-            et.SubElement(manual_entry, 'ExpMonth').text = card.exp_month
-            et.SubElement(manual_entry, 'ExpYear').text = card.exp_year
-            et.SubElement(manual_entry, 'CVV2').text = card.cvn
+            if card.exp_month is not None:
+                et.SubElement(manual_entry, 'ExpMonth').text = card.exp_month
+            if card.exp_year is not None:
+                et.SubElement(manual_entry, 'ExpYear').text = card.exp_year
+            if card.cvn is not None:
+                et.SubElement(manual_entry, 'CVV2').text = card.cvn
+
             et.SubElement(
                 manual_entry,
                 'ReaderPresent').text = 'Y' if card.reader_present else 'N'
             et.SubElement(
                 manual_entry,
                 'CardPresent').text = 'Y' if card.card_present else 'N'
+
             block1.append(card_data)
 
             if isinstance(card, CreditCardData):
@@ -1031,11 +1042,11 @@ class PorticoConnector(XmlGateway):
 
             if builder.start_date is not None:
                 et.SubElement(transaction,
-                              'RptStartUtcDT').text = builder.start_date
+                              'RptStartUtcDT').text = builder.start_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
             if builder.end_date is not None:
                 et.SubElement(transaction,
-                              'RptEndUtcDT').text = builder.end_date
+                              'RptEndUtcDT').text = builder.end_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
             if builder.transaction_id:
                 et.SubElement(transaction,
@@ -1378,10 +1389,8 @@ class PorticoConnector(XmlGateway):
 
         raise UnsupportedTransactionException()
 
-    @staticmethod
-    def _has_token(payment_method):
-        if isinstance(payment_method,
-                      Tokenizable) and payment_method.token is not None:
+    def _has_token(self, payment_method):
+        if self._has_attr(payment_method, 'token') and payment_method.token is not None:
             return True, payment_method.token
 
         return False, None

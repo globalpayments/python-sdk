@@ -5,3 +5,5 @@ GlobalPayments.Api.egg-info/
 __pycache__/
 
 *.pyc
+MANIFEST
+dist/
