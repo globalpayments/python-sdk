@@ -1083,7 +1083,7 @@ class PorticoConnector(XmlGateway):
         if self.developer_id is not None:
             et.SubElement(header, 'DeveloperID').text = self.developer_id
         if self.version_number is not None:
-            et.SubElement(header, 'VersionNumber').text = self.version_number
+            et.SubElement(header, 'VersionNbr').text = self.version_number
         if client_transaction_id is not None:
             et.SubElement(header, 'ClientTxnId').text = client_transaction_id
 

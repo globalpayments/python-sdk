@@ -1,6 +1,6 @@
-============
+==================
 GlobalPayments.Api
-============
+==================
 
 Global Payments Python SDK for integrating with Global Payments merchant services APIs.
 

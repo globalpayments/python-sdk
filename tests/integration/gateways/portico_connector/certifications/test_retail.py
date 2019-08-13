@@ -28,6 +28,8 @@ class IntegrationGatewaysPorticoConnectorCertificationRetailTests(
     config = ServicesConfig()
     config.secret_api_key = 'skapi_cert_MaePAQBr-1QAqjfckFC8FTbRTT120bVQUlfVOjgCBw'
     config.service_url = 'https://cert.api2.heartlandportico.com'
+    config.developer_id = '000000'
+    config.version_number = '0000'
 
     ServicesContainer.configure(config, 'retail')
 
