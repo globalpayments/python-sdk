@@ -9,6 +9,7 @@ import jsonpickle
 import urllib3.contrib.pyopenssl
 import xmltodict
 import globalpayments as gp
+import datetime
 from globalpayments.api.entities import (
     Address, BatchSummary, Customer, DebitMac, RecurringPaymentMethod,
     Schedule, ThreeDSecure, Transaction, TransactionSummary)
@@ -108,7 +109,7 @@ class PayPlanConnector(RestGateway):
     def secret_api_key(self, value):
         self._secret_api_key = value
         encoded_value = base64.b64encode(bytearray(value.encode()))
-        self.headers['Authorization'] = 'Basic {}'.format(encoded_value)
+        self.headers['Authorization'] = 'Basic {}'.format(encoded_value.decode('ascii'))
 
     @property
     def supports_retrieval(self):
@@ -125,7 +126,7 @@ class PayPlanConnector(RestGateway):
         request = {}
 
         if (builder.transaction_type is TransactionType.Create
-                | builder.transaction_type is TransactionType.Edit):
+                or builder.transaction_type is TransactionType.Edit):
             if isinstance(builder.entity, Customer):
                 self._build_customer(request, builder.entity)
             elif isinstance(builder.entity, RecurringPaymentMethod):
@@ -135,7 +136,7 @@ class PayPlanConnector(RestGateway):
                 self._build_schedule(request, builder.entity,
                                      builder.transaction_type)
         elif builder.transaction_type is TransactionType.Search:
-            for key, value in builder.search_criteria.iteritems():
+            for key, value in builder.search_criteria.items():
                 request[key] = value
 
         response = self.do_transaction(
@@ -149,38 +150,38 @@ class PayPlanConnector(RestGateway):
 
         response = jsonpickle.decode(raw_response)
 
-        if isinstance(builder.entity, Customer
-                      ) and builder.transaction_type == TransactionType.Search:
-            customers = []
+        if isinstance(builder.entity, Customer) or 'customerIdentifier' in builder.search_criteria:
+            if builder.transaction_type == TransactionType.Search:
+                customers = []
 
-            for _key, value in response.results:
-                customers.append(self._hydrate_customer(value))
+                for value in response['results']:
+                    customers.append(self._hydrate_customer(value))
 
-            return customers
+                return customers
 
         if isinstance(builder.entity, Customer):
             return self._hydrate_customer(response)
 
-        if isinstance(builder.entity, RecurringPaymentMethod
-                      ) and builder.transaction_type == TransactionType.Search:
-            methods = []
+        if isinstance(builder.entity, RecurringPaymentMethod) or 'paymentMethodIdentifier' in builder.search_criteria:
+            if builder.transaction_type == TransactionType.Search:
+                methods = []
 
-            for _key, value in response.results:
-                methods.append(self._hydrate_payment_method(value))
+                for value in response['results']:
+                    methods.append(self._hydrate_payment_method(value))
 
-            return methods
+                return methods
 
         if isinstance(builder.entity, RecurringPaymentMethod):
             return self._hydrate_payment_method(response)
 
-        if isinstance(builder.entity, Schedule
-                      ) and builder.transaction_type == TransactionType.Search:
-            schedules = []
+        if isinstance(builder.entity, Schedule) or 'scheduleIdentifier' in builder.search_criteria:
+            if builder.transaction_type == TransactionType.Search:
+                schedules = []
 
-            for _key, value in response.results:
-                schedules.append(self._hydrate_schedule(value))
+                for value in response['results']:
+                    schedules.append(self._hydrate_schedule(value))
 
-            return schedules
+                return schedules
 
         if isinstance(builder.entity, Schedule):
             return self._hydrate_schedule(response)
@@ -189,7 +190,7 @@ class PayPlanConnector(RestGateway):
 
     @staticmethod
     def _map_method(transaction_type):
-        if transaction_type == TransactionType.Create | transaction_type == TransactionType.Search:
+        if transaction_type == TransactionType.Create or transaction_type == TransactionType.Search:
             return 'POST'
         elif transaction_type == TransactionType.Edit:
             return 'PUT'
@@ -203,9 +204,9 @@ class PayPlanConnector(RestGateway):
         if (builder.transaction_type == TransactionType.Fetch
                 or builder.transaction_type == TransactionType.Delete
                 or builder.transaction_type == TransactionType.Edit):
-            suffix = '/' + builder.entity.key
+            suffix = '/' + str(builder.entity.key)
 
-        if isinstance(builder.entity, Customer):
+        if isinstance(builder.entity, Customer) or 'customerIdentifier' in builder.search_criteria :
             return '{}{}'.format(
                 'searchCustomers' \
                     if builder.transaction_type == TransactionType.Search \
@@ -213,7 +214,7 @@ class PayPlanConnector(RestGateway):
                 suffix
             )
 
-        if isinstance(builder.entity, RecurringPaymentMethod):
+        if isinstance(builder.entity, RecurringPaymentMethod) or 'paymentMethodIdentifier' in builder.search_criteria:
             payment_method = ''
 
             if builder.transaction_type == TransactionType.Create:
@@ -231,7 +232,7 @@ class PayPlanConnector(RestGateway):
                 suffix
             )
 
-        if isinstance(builder.entity, Schedule):
+        if isinstance(builder.entity, Schedule) or 'scheduleIdentifier' in builder.search_criteria:
             return '{}{}'.format(
                 'searchSchedules' if builder.transaction_type == TransactionType.Search else 'schedules',
                 suffix
@@ -270,11 +271,11 @@ class PayPlanConnector(RestGateway):
         request = self._build_address(request, payment.address)
 
         if transaction_type == TransactionType.Create:
-            has_token, token_value = self._has_token(payment.paymentMethod)
+            has_token, token_value = self._has_token(payment.payment_method)
             payment_info = None
             payment_info_key = None
 
-            if isinstance(payment.payment_method, CardData):
+            if isinstance(payment.payment_method, CreditCardData):
                 method = payment.payment_method
                 payment_info_key = 'alternateIdentity' if has_token else 'card'
                 payment_info = {
@@ -429,7 +430,10 @@ class PayPlanConnector(RestGateway):
     def _build_date(self, request, name, date, force=False):
         if date is not None or force is True:
             # TODO: format date
-            value = date.value if date.value is not None else None
+            if isinstance(date, datetime.date):
+                value = date.strftime("%m%d%Y")
+            elif isinstance(date, str):
+                value = date
             request[name] = value
 
         return request
@@ -460,102 +464,103 @@ class PayPlanConnector(RestGateway):
     def _hydrate_customer(self, response):
         customer = Customer()
 
-        customer.key = response['customerKey']
-        customer.id = response['customerIdentifier']
-        customer.first_name = response['firstName']
-        customer.last_name = response['lastName']
-        customer.company = response['company']
-        customer.status = response['customerStatus']
-        customer.title = response['title']
-        customer.department = response['department']
-        customer.email = response['primaryEmail']
-        customer.home_phone = response['phoneEvening']
-        customer.work_phone = response['phoneDay']
-        customer.mobile_phone = response['phoneMobile']
-        customer.fax = response['fax']
+        customer.key = response['customerKey'] if 'customerKey' in response else None
+        customer.id = response['customerIdentifier'] if 'customerIdentifier' in response else None
+        customer.first_name = response['firstName'] if 'firstName' in response else None
+        customer.last_name = response['lastName'] if 'lastName' in response else None
+        customer.company = response['company'] if 'company' in response else None
+        customer.status = response['customerStatus'] if 'customerStatus' in response else None
+        customer.title = response['title'] if 'title' in response else None
+        customer.department = response['department'] if 'department' in response else None
+        customer.email = response['primaryEmail'] if 'primaryEmail' in response else None
+        customer.home_phone = response['phoneEvening'] if 'phoneEvening' in response else None
+        customer.work_phone = response['phoneDay'] if 'phoneDay' in response else None
+        customer.mobile_phone = response['phoneMobile'] if 'phoneMobile' in response else None
+        customer.fax = response['fax'] if 'fax' in response else None
         customer.address = Address()
-        customer.address.street_address_1 = response['addressLine1']
-        customer.address.street_address_2 = response['addressLine2']
-        customer.address.city = response['city']
-        customer.address.province = response['stateProvince']
-        customer.address.postal_code = response['zipPostalCode']
-        customer.country = response['country']
+        customer.address.street_address_1 = response['addressLine1'] if 'addressLine1' in response else None
+        customer.address.street_address_2 = response['addressLine2'] if 'addressLine2' in response else None
+        customer.address.city = response['city'] if 'city' in response else None
+        customer.address.province = response['stateProvince'] if 'stateProvince' in response else None
+        customer.address.postal_code = response['zipPostalCode'] if 'zipPostalCode' in response else None
+        customer.address.country = response['country'] if 'country' in response else None
 
         return customer
 
     def _hydrate_payment_method(self, response):
         method = RecurringPaymentMethod()
 
-        method.key = response['paymentMethodKey']
-        method.id = response['paymentMethodIdentifier']
-        method.payment_type = response['paymentMethodType']
-        method.preferred_payment = response['preferredPayment'] == 'true'
-        method.status = response['paymentStatus']
-        method.customer_key = response['customerKey']
-        method.name_on_account = response['nameOnAccount']
-        method.commercial_indicator = response['commercialIndicator']
-        method.tax_type = response['taxType']
-        method.expiration_date = response['expirationDate']
+        method.key = response['paymentMethodKey'] if 'paymentMethodKey' in response else None
+        method.id = response['paymentMethodIdentifier'] if 'paymentMethodIdentifier' in response else None
+        method.payment_type = response['paymentMethodType'] if 'paymentMethodType' in response else None
+        method.preferred_payment = response['preferredPayment'] == 'true' if 'preferredPayment' in response else None
+        method.status = response['paymentStatus'] if 'paymentStatus' in response else None
+        method.customer_key = response['customerKey'] if 'customerKey' in response else None
+        method.name_on_account = response['nameOnAccount'] if 'nameOnAccount' in response else None
+        method.commercial_indicator = response['commercialIndicator'] if 'commercialIndicator' in response else None
+        method.tax_type = response['taxType'] if 'taxType' in response else None
+        method.expiration_date = response['expirationDate'] if 'expirationDate' in response else None
         method.address = Address()
-        method.address.street_address_1 = response['addressLine1']
-        method.address.street_address_2 = response['addressLine2']
-        method.address.city = response['city']
-        method.address.province = response['stateProvince']
-        method.address.postal_code = response['zipPostalCode']
-        method.country = response['country']
+        method.address.street_address_1 = response['addressLine1'] if 'addressLine1' in response else None
+        method.address.street_address_2 = response['addressLine2'] if 'addressLine2' in response else None
+        method.address.city = response['city'] if 'city' in response else None
+        method.address.province = response['stateProvince'] if 'stateProvince' in response else None
+        method.address.postal_code = response['zipPostalCode'] if 'zipPostalCode' in response else None
+        method.address.country = response['country'] if 'country' in response else None
 
         return method
 
     def _hydrate_schedule(self, response):
         schedule = Schedule()
 
-        schedule.key = response['scheduleKey']
-        schedule.id = response['scheduleIdentifier']
-        schedule.customer_key = response['customerKey']
-        schedule.name = response['scheduleName']
-        schedule.status = response['scheduleStatus']
-        schedule.payment_key = response['paymentMethodKey']
+        schedule.key = response['scheduleKey'] if 'scheduleKey' in response else None
+        schedule.id = response['scheduleIdentifier'] if 'scheduleIdentifier' in response else None
+        schedule.customer_key = response['customerKey'] if 'customerKey' in response else None
+        schedule.name = response['scheduleName'] if 'scheduleName' in response else None
+        schedule.status = response['scheduleStatus'] if 'scheduleStatus' in response else None
+        schedule.payment_key = response['paymentMethodKey'] if 'paymentMethodKey' in response else None
 
-        if response['subtotalAmount'] is not None:
+        if 'subtotalAmount' in response:
             subtotal = response['subtotalAmount']
             schedule.amount = subtotal['value']
             schedule.currency = subtotal['currency']
 
-        if response['taxAmount'] is not None:
+        if 'taxAmount' in response:
             tax = response['taxAmount']
             schedule.tax_amount = tax['value']
 
-        schedule.device_id = response['deviceId']
-        schedule.start_date = response['startDate']
+        schedule.device_id = response['deviceId'] if 'deviceId' in response else None
+        schedule.start_date = response['startDate'] if 'startDate' in response else None
 
-        if response['processingDateInfo'] is None:
+        if 'processingDateInfo' in response:
             schedule.payment_schedule = PaymentSchedule.Dynamic
-        else:
             if response['processingDateInfo'] == 'Last':
                 schedule.payment_schedule = PaymentSchedule.LastDayOfTheMonth
             elif response['processingDateInfo'] == 'First':
                 schedule.payment_schedule = PaymentSchedule.FirstDayOfTheMonth
             else:
                 schedule.payment_schedule = PaymentSchedule.Dynamic
+        else:
+            schedule.payment_schedule = PaymentSchedule.Dynamic
 
-        schedule.frequency = response['frequency']
-        schedule.end_date = response['endDate']
-        schedule.reprocessing_count = response['reprocessingCount']
-        schedule.email_receipt = response['emailReceipt']
-        schedule.email_notification = response['emailNotification'] == 'Yes'
-        schedule.invoice_number = response['invoiceNbr']
-        schedule.po_number = response['poNumber']
-        schedule.description = response['description']
+        schedule.frequency = response['frequency'] if 'frequency' in response else None
+        schedule.end_date = response['endDate'] if 'endDate' in response else None
+        schedule.reprocessing_count = response['reprocessingCount'] if 'reprocessingCount' in response else None
+        schedule.email_receipt = response['emailReceipt'] if 'emailReceipt' in response else None
+        schedule.email_notification = response['emailNotification'] == 'Yes' if 'emailNotification' in response else None
+        schedule.invoice_number = response['invoiceNbr'] if 'invoiceNbr' in response else None
+        schedule.po_number = response['poNumber'] if 'poNumber' in response else None
+        schedule.description = response['description'] if 'description' in response else None
         # statusSetDate
-        schedule.next_processing_date = response['nextProcessingDate']
+        schedule.next_processing_date = response['nextProcessingDate'] if 'nextProcessingDate' in response else None
         # previousProcessingDate
         # approvedTransactionCount
         # failureCount
         # totalApprovedAmountToDate
         # numberOfPaymentsRemaining
-        schedule.cancellation_date = response['cancellationDate']
+        schedule.cancellation_date = response['cancellationDate'] if 'cancellationDate' in response else None
         # creationDate
-        schedule.has_started = response['scheduleStarted'] == 'true'
+        schedule.has_started = response['scheduleStarted'] == 'true' if 'scheduleStarted' in response else None
 
         return schedule
 
@@ -602,7 +607,8 @@ class PorticoConnector(XmlGateway):
             if (builder.payment_method.payment_method_type !=
                     PaymentMethodType.Gift
                     and builder.payment_method.payment_method_type !=
-                    PaymentMethodType.ACH):
+                    PaymentMethodType.ACH
+                    and builder.payment_method.payment_type != 'ACH'):
                 et.SubElement(
                     block1,
                     'AllowDup').text = 'Y' if builder.allow_duplicates else 'N'
@@ -882,8 +888,9 @@ class PorticoConnector(XmlGateway):
 
             # check action
             if method.payment_type == 'ACH':
-                block1.remove('AllowDup')
                 et.SubElement(block1, 'CheckAction').text = 'SALE'
+                if builder.payment_method.sec_code is not None:
+                    et.SubElement(block1, 'SECCode').text = builder.payment_method.sec_code.value
 
             # payment method stuff
             et.SubElement(block1, 'PaymentMethodKey').text = method.key
@@ -1035,6 +1042,13 @@ class PorticoConnector(XmlGateway):
         if builder.timezone_conversion:
             et.SubElement(transaction,
                           'TzConversion').text = builder.timezone_conversion
+
+        if builder.report_type == ReportType.FindTransactions:
+            criteria = et.SubElement(transaction, 'Criteria')
+
+            if len(builder.search_criteria) > 0:
+                for key, value in builder.search_criteria.items():
+                    et.SubElement(criteria, key).text = value
 
         if isinstance(builder, gp.api.builders.TransactionReportBuilder):
             if builder.device_id:
@@ -1246,6 +1260,14 @@ class PorticoConnector(XmlGateway):
 
             return response
 
+        if report_type == ReportType.FindTransactions and len(doc) > 0:
+            response = []
+
+            for key, value in doc.items():
+                response.append(self._hydrate_transaction_summary(value))
+
+            return response
+
         if report_type == ReportType.TransactionDetail:
             return self._hydrate_transaction_summary(doc)
 
@@ -1384,6 +1406,8 @@ class PorticoConnector(XmlGateway):
     def _map_report_type(report_type):
         if report_type == ReportType.Activity:
             return 'ReportActivity'
+        elif report_type == ReportType.FindTransactions:
+            return 'FindTransactions'
         elif report_type == ReportType.TransactionDetail:
             return 'ReportTxnDetail'
 

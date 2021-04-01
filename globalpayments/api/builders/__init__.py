@@ -384,6 +384,11 @@ class RecurringBuilder(TransactionBuilder):
 class ReportBuilder(BaseBuilder):
     report_type = None
     timezone_conversion = None
+    search_criteria = {}
+
+    def add_search_criteria(self, key, value):
+        self.search_criteria[key] = value
+        return self
 
     def __init__(self, report_type):
         BaseBuilder.__init__(self)

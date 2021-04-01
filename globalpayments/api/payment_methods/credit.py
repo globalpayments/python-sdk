@@ -287,7 +287,7 @@ class CreditCardData(Credit):
         '''
 
         month = str(self.exp_month).zfill(2)
-        year = str(self.exp_year).zfill(4)[:2]
+        year = str(self.exp_year).zfill(4)[2:]
         return '{}{}'.format(month, year)
 
 

@@ -20,13 +20,10 @@ class RecurringService(object):
                                                 entity).execute(config_name)
 
     @staticmethod
-    def get(key, config_name=None):
-        entity = gp.api.entities.RecurringEntity()
-        entity.key = key
-
+    def get(entity, config_name=None):
         return gp.api.builders.RecurringBuilder(TransactionType.Fetch,
                                                 entity).execute(config_name)
 
     @staticmethod
-    def search():
-        return gp.api.builders.RecurringBuilder(TransactionType.Search)
+    def search(entity = None):
+        return gp.api.builders.RecurringBuilder(TransactionType.Search, entity)

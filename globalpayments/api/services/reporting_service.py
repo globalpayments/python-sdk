@@ -11,3 +11,7 @@ class ReportingService(object):
     def transaction_detail(transaction_id=None):
         return gp.api.builders.TransactionReportBuilder(ReportType.TransactionDetail) \
             .with_transaction_id(transaction_id)
+
+    @staticmethod
+    def find_transactions():
+        return gp.api.builders.TransactionReportBuilder(ReportType.FindTransactions)

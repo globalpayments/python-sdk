@@ -205,7 +205,7 @@ class RecurringEntity(object):
     id = None
     key = None
 
-    def create(self, config_name=None):
+    def create(self, config_name = 'default'):
         """
         Creates a resource
         :return: RecurringEntity
@@ -213,7 +213,7 @@ class RecurringEntity(object):
 
         return gp.api.services.RecurringService.create(self, config_name)
 
-    def delete(self, force=False, config_name=None):
+    def delete(self, force=False, config_name = 'default'):
         """
         Delete a record from the gateway.
         :param force: Indicates if the deletion should be forced
@@ -228,27 +228,26 @@ class RecurringEntity(object):
                 exc)
 
     @staticmethod
-    def find(identifier_name, identifier, config_name=None):
+    def find(identifier_name, identifier, config_name = 'default'):
         """
         Searches for a specific record by `id`.
         :param identifier: The ID of the record to find
         :return: RecurringEntity or None if not found
         """
-        client = gp.api.ServicesContainer.instance().get_recurring_client(
-            config_name)
+        client = gp.api.ServicesContainer.instance().get_recurring_client(config_name)
         if client is not None and client.supports_retrieval:
             response = gp.api.services.RecurringService.search() \
                 .add_search_criteria(identifier_name, identifier) \
                 .execute(config_name)
-            entity = response[0]
+            entity = response[0] if len(response) > 0 else None 
             if entity is not None:
                 return gp.api.services.RecurringService.get(
-                    entity.key, config_name)
+                    entity, config_name)
             return None
         raise UnsupportedTransactionException()
 
     @staticmethod
-    def find_all(config_name=None):
+    def find_all(entity, config_name = 'default'):
         """
         Lists all records of base type
         :return: Array
@@ -256,11 +255,11 @@ class RecurringEntity(object):
         client = gp.api.ServicesContainer.instance().get_recurring_client(
             config_name)
         if client is not None and client.supports_retrieval:
-            return gp.api.services.RecurringService.search().execute(
+            return gp.api.services.RecurringService.search(entity).execute(
                 config_name)
         raise UnsupportedTransactionException()
 
-    def save_changes(self, config_name=None):
+    def save_changes(self, config_name = 'default'):
         try:
             return gp.api.services.RecurringService.edit(self, config_name)
         except ApiException as exc:
@@ -310,9 +309,14 @@ class Customer(RecurringEntity):
         return method
 
     @staticmethod
-    def find(identifier, config_name=None):
-        RecurringEntity.find('customerIdentifier', identifier, config_name)
+    def find(identifier, config_name = 'default'):
+        test = RecurringEntity.find('customerIdentifier', identifier, config_name)
+        return test
 
+    @staticmethod
+    def find_all(config_name = 'default'):
+        entity = Customer();
+        return RecurringEntity.find_all(entity, config_name)
 
 class RecurringPaymentMethod(RecurringEntity):
     address = None
@@ -326,6 +330,7 @@ class RecurringPaymentMethod(RecurringEntity):
     preferred_payment = None
     status = None
     tax_type = None
+    sec_code = None
 
     def __init__(self, payment_method_or_customer=None, payment_id=None):
         if isinstance(payment_method_or_customer, str):
@@ -361,10 +366,13 @@ class RecurringPaymentMethod(RecurringEntity):
         return data
 
     @staticmethod
-    def find(identifier, config_name=None):
-        RecurringEntity.find('paymentMethodIdentifier', identifier,
-                             config_name)
+    def find(identifier, config_name = 'default'):
+        return RecurringEntity.find('paymentMethodIdentifier', identifier, config_name)
 
+    @staticmethod
+    def find_all(config_name = 'default'):
+        entity = RecurringPaymentMethod();
+        return RecurringEntity.find_all(entity, config_name)
 
 class Schedule(RecurringEntity):
     amount = None
@@ -394,10 +402,47 @@ class Schedule(RecurringEntity):
     def total_amount(self):
         return self.amount + self.tax_amount
 
+    def with_status(self, value):
+        self.status = value
+        return self
+
+    def with_amount(self, value):
+        self.amount = value * 100
+        return self
+
+    def with_reprocessing_count(self, value):
+        self.reprocessing_count = value
+        return self
+
+    def with_start_date(self, value):
+        self.start_date = value
+        return self
+
+    def with_end_date(self, value):
+        self.end_date = value
+        return self
+
+    def with_frequency(self, value):
+        self.frequency= value
+        return self
+
+    def with_currency(self, value):
+        self.currency= value
+        return self
+
+    def with_email_receipt(self, value):
+        self.email_receipt = value
+        return self
+
     def __init__(self, customer_key=None, payment_key=None):
         self.customer_key = customer_key
         self.payment_key = payment_key
 
     @staticmethod
-    def find(identifier, config_name=None):
-        RecurringEntity.find('scheduleIdentifier', identifier, config_name)
+    def find(identifier, config_name = 'default'):
+        return RecurringEntity.find('scheduleIdentifier', identifier, config_name)
+
+    @staticmethod
+    def find_all(config_name = 'default'):
+        entity = Schedule();
+        return RecurringEntity.find_all(entity, config_name)
