@@ -1263,11 +1263,18 @@ class PorticoConnector(XmlGateway):
         if report_type == ReportType.FindTransactions and len(doc) > 0:
             response = []
 
-            for key, value in doc.items():
+            if isinstance(doc['Transactions'], dict):
+
+                for key, value in doc.items():
+                    response.append(self._hydrate_transaction_summary(value))
+
+                return response
+
+            for value in doc['Transactions']:
                 response.append(self._hydrate_transaction_summary(value))
 
             return response
-
+            
         if report_type == ReportType.TransactionDetail:
             return self._hydrate_transaction_summary(doc)
 

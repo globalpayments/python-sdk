@@ -9,7 +9,7 @@ except ImportError:
 
 setup(
     name='GlobalPayments.Api',
-    version='1.0.3',
+    version='1.0.4',
     author='Heartland Payment Systems',
     author_email='EntApp_DevPortal@e-hps.com',
     packages=[
