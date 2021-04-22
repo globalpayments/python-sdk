@@ -104,6 +104,7 @@ class AuthorizationBuilder(TransactionBuilder):
     schedule_id = None
     shipping_address = None
     timestamp = None
+    healthcare = None
 
     def with_address(self, address, address_type=AddressType.Billing):
         if not isinstance(address, Address):
@@ -118,6 +119,10 @@ class AuthorizationBuilder(TransactionBuilder):
     def with_alias(self, action, value):
         self.alias = value
         self.alias_action = action
+        return self
+    
+    def with_healthcare_amount(self, value):
+        self.healthcare = value
         return self
 
     def with_cash_back(self, value):
