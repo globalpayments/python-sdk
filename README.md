@@ -90,7 +90,7 @@ card.card_holder_name = 'Joe Smith'
 try:
     response = card.charge(129.99) \
         .with_currency("EUR") \
-        .with_healthcare_amount(100.00)
+        .with_healthcare_amount(100.00) \
         .execute()
 
     result = response.response_code # 00 == Success
