@@ -440,6 +440,9 @@ class PayPlanConnector(RestGateway):
 
     def _build_amount(self, request, name, amount, currency, transaction_type):
         if amount is not None:
+            if isinstance(amount, float):
+                amount = int(amount * 100)
+                
             request[name] = {
                 # TODO: format in cents
                 'value': amount,
@@ -522,7 +525,7 @@ class PayPlanConnector(RestGateway):
 
         if 'subtotalAmount' in response:
             subtotal = response['subtotalAmount']
-            schedule.amount = subtotal['value']
+            schedule.amount = int(subtotal['value']) / 100
             schedule.currency = subtotal['currency']
 
         if 'taxAmount' in response:
@@ -602,26 +605,33 @@ class PorticoConnector(XmlGateway):
 
         # build request
         if (builder.transaction_type == TransactionType.Sale
-                or builder.transaction_type == TransactionType.Auth
-                or builder.transaction_type == TransactionType.Refund):
-            if (builder.payment_method.payment_method_type !=
-                    PaymentMethodType.Gift
-                    and builder.payment_method.payment_method_type !=
-                    PaymentMethodType.ACH
-                    and builder.payment_method.payment_type != 'ACH'):
-                et.SubElement(
-                    block1,
-                    'AllowDup').text = 'Y' if builder.allow_duplicates else 'N'
-                if (builder.transaction_type != TransactionType.Refund
-                        and (builder.transaction_modifier ==
-                             TransactionModifier.NoModifier
-                             or not builder.transaction_modifier)
+        or builder.transaction_type == TransactionType.Auth
+        or builder.transaction_type == TransactionType.Refund):
+            if (
+                builder.payment_method.payment_method_type != PaymentMethodType.Gift
+                and builder.payment_method.payment_method_type != PaymentMethodType.ACH
+            ):
+                if (
+                    isinstance(builder.payment_method, RecurringPaymentMethod)
+                    and builder.payment_method.payment_type == 'ACH'
+                ):
+                    pass
+                else:
+                    et.SubElement(
+                        block1,
+                        'AllowDup'
+                    ).text = 'Y' if builder.allow_duplicates else 'N'
+                    if (builder.transaction_type != TransactionType.Refund
+                        and (
+                            builder.transaction_modifier == TransactionModifier.NoModifier
+                            or not builder.transaction_modifier
+                        )
                         and builder.payment_method.payment_method_type !=
                         PaymentMethodType.EBT
                         and builder.payment_method.payment_method_type !=
                         PaymentMethodType.Recurring):
-                    et.SubElement(block1, 'AllowPartialAuth').text = \
-                        'Y' if builder.allow_partial_auth else 'N'
+                        et.SubElement(block1, 'AllowPartialAuth').text = \
+                            'Y' if builder.allow_partial_auth else 'N'
 
         if builder.amount is not None:
             et.SubElement(block1, 'Amt').text = str(builder.amount)
@@ -1481,6 +1491,9 @@ class PorticoConnector(XmlGateway):
             summary.status = item["TxnStatus"] \
                 if "TxnStatus" in item \
                 else item["Status"]
+        elif "Data" in item:
+            if "TxnStatus" in item["Data"]:
+                summary.status = item["Data"]["TxnStatus"]
 
         if "TxnUtcDT" in item or "ReqUtcDT" in item:
             summary.transaction_date = item["TxnUtcDT"] \

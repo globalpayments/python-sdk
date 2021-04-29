@@ -407,7 +407,7 @@ class Schedule(RecurringEntity):
         return self
 
     def with_amount(self, value):
-        self.amount = value * 100
+        self.amount = int(value * 100)
         return self
 
     def with_reprocessing_count(self, value):
