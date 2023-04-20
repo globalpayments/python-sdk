@@ -311,8 +311,8 @@ class ManagementBuilder(TransactionBuilder):
         self.tax_type = value
         return self
 
-    def __init__(self, transaction_type):
-        TransactionBuilder.__init__(self, transaction_type)
+    def __init__(self, transaction_type, payment_method=None):
+        TransactionBuilder.__init__(self, transaction_type, payment_method)
 
     def execute(self, config_name=None):
         """
