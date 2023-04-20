@@ -182,6 +182,27 @@ class Credit(object):
         return gp.api.builders.AuthorizationBuilder(TransactionType.Verify,
                                                     self)
 
+    def update_token_expiry(self):
+        '''
+        Updates expiration date contained within a Multi-Use Token
+
+        @rtype: L{ManagementBuilder}
+        @return: The builder
+        '''
+
+        return gp.api.builders.ManagementBuilder(TransactionType.TokenUpdate, self)\
+            .execute()
+
+    def delete_token(self):
+        '''
+        Deletes a Multi-Use Token from the gateway
+
+        @rtype: L{ManagementBuilder}
+        @return: The builder
+        '''
+
+        return gp.api.builders.ManagementBuilder(TransactionType.TokenDelete, self)\
+            .execute()
 
 class CreditCardData(Credit):
     '''

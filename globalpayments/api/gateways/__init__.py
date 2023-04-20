@@ -1023,7 +1023,9 @@ class PorticoConnector(XmlGateway):
                     builder.gratuity)
 
             # transaction id
-            et.SubElement(root, 'GatewayTxnId').text = builder.transaction_id
+            if builder.transaction_type != TransactionType.TokenUpdate\
+                    and builder.transaction_type != TransactionType.TokenDelete:
+                et.SubElement(root, 'GatewayTxnId').text = builder.transaction_id
 
             # client transaction id
             if builder.transaction_type == TransactionType.Reversal and builder.client_transaction_id:
@@ -1043,8 +1045,39 @@ class PorticoConnector(XmlGateway):
                 if builder.tax_amount:
                     et.SubElement(cpc, 'TaxAmt').text = str(builder.tax_amount)
 
+        if builder.transaction_type == TransactionType.TokenUpdate:
+            et.SubElement(transaction, 'TokenValue').text = builder.payment_method.token
+
+            token_actions = et.SubElement(transaction, 'TokenActions')
+
+            set = et.SubElement(token_actions, 'Set')
+
+            set_month_attribute = et.SubElement(set, 'Attribute')
+
+            et.SubElement(set_month_attribute, 'Name').text = 'ExpMonth'
+
+            et.SubElement(set_month_attribute, 'Value').text = builder.payment_method.exp_month
+
+            set_year_attribute = et.SubElement(set, 'Attribute')
+
+            et.SubElement(set_year_attribute, 'Name').text = 'ExpYear'
+
+            et.SubElement(set_year_attribute, 'Value').text = builder.payment_method.exp_year
+
+        if builder.transaction_type == TransactionType.TokenDelete:
+            et.SubElement(transaction, 'TokenValue').text = builder.payment_method.token
+
+            token_actions = et.SubElement(transaction, 'TokenActions')
+
+            et.SubElement(token_actions, 'Delete')
+
         response = self.do_transaction(
             self._build_envelope(transaction, builder.client_transaction_id))
+
+        if builder.transaction_type == TransactionType.TokenUpdate\
+                or builder.transaction_type == TransactionType.TokenDelete:
+            return True
+
         return self._map_response(response, builder.payment_method)
 
     def process_report(self, builder):
@@ -1413,6 +1446,10 @@ class PorticoConnector(XmlGateway):
             ret = 'GiftCardReplace'
         elif builder.transaction_type == TransactionType.Reward:
             ret = 'GiftCardReward'
+        elif builder.transaction_type == TransactionType.TokenUpdate:
+            ret = 'ManageTokens'
+        elif builder.transaction_type == TransactionType.TokenDelete:
+            ret = 'ManageTokens'
 
         if ret is None:
             raise UnsupportedTransactionException()

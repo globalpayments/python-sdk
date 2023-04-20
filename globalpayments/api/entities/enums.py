@@ -198,6 +198,10 @@ class TransactionType(IntEnum):
     VerifySignature = 1 << 23
     #  Indicates a 3DSecure enrollment verification
     VerifyEnrolled = 1 << 24
+    #  Indicates update Multi-Use Token
+    TokenUpdate = 1 << 25
+    #  Delete a Multi-Use Token
+    TokenDelete = 1 << 26
 
 
 class TransactionModifier(IntEnum):
