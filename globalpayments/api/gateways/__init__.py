@@ -108,8 +108,10 @@ class PayPlanConnector(RestGateway):
     @secret_api_key.setter
     def secret_api_key(self, value):
         self._secret_api_key = value
-        encoded_value = base64.b64encode(bytearray(value.encode()))
-        self.headers['Authorization'] = 'Basic {}'.format(encoded_value.decode('ascii'))
+
+        if (value is not None):
+            encoded_value = base64.b64encode(bytearray(value.encode()))
+            self.headers['Authorization'] = 'Basic {}'.format(encoded_value.decode('ascii'))
 
     @property
     def supports_retrieval(self):
@@ -731,11 +733,11 @@ class PorticoConnector(XmlGateway):
                           'CardNbr').text = token_value or card.number
 
             if card.exp_month is not None:
-                et.SubElement(manual_entry, 'ExpMonth').text = card.exp_month
+                et.SubElement(manual_entry, 'ExpMonth').text = str(card.exp_month)
             if card.exp_year is not None:
-                et.SubElement(manual_entry, 'ExpYear').text = card.exp_year
+                et.SubElement(manual_entry, 'ExpYear').text = str(card.exp_year)
             if card.cvn is not None:
-                et.SubElement(manual_entry, 'CVV2').text = card.cvn
+                et.SubElement(manual_entry, 'CVV2').text = str(card.cvn)
 
             et.SubElement(
                 manual_entry,
@@ -908,9 +910,9 @@ class PorticoConnector(XmlGateway):
                     and isinstance(method.payment_method, CreditCardData)):
                 card = method.payment_method
                 data = et.SubElement(block1, 'PaymentMethodKeyData')
-                et.SubElement(data, 'ExpMonth').text = card.exp_month
-                et.SubElement(data, 'ExpYear').text = card.exp_year
-                et.SubElement(data, 'CVV2').text = card.cvn
+                et.SubElement(data, 'ExpMonth').text = str(card.exp_month)
+                et.SubElement(data, 'ExpYear').text = str(card.exp_year)
+                et.SubElement(data, 'CVV2').text = str(card.cvn)
 
             # recurring data
             recurring = et.SubElement(block1, 'RecurringData')
@@ -1128,21 +1130,21 @@ class PorticoConnector(XmlGateway):
         if self.secret_api_key is not None:
             et.SubElement(header, 'SecretAPIKey').text = self.secret_api_key
         if self.site_id is not None:
-            et.SubElement(header, 'SiteId').text = self.site_id
+            et.SubElement(header, 'SiteId').text = str(self.site_id)
         if self.license_id is not None:
-            et.SubElement(header, 'LicenseId').text = self.license_id
+            et.SubElement(header, 'LicenseId').text = str(self.license_id)
         if self.device_id is not None:
-            et.SubElement(header, 'DeviceId').text = self.device_id
+            et.SubElement(header, 'DeviceId').text = str(self.device_id)
         if self.username is not None:
-            et.SubElement(header, 'UserName').text = self.username
+            et.SubElement(header, 'UserName').text = str(self.username)
         if self.password is not None:
             et.SubElement(header, 'Password').text = self.password
         if self.developer_id is not None:
-            et.SubElement(header, 'DeveloperID').text = self.developer_id
+            et.SubElement(header, 'DeveloperID').text = str(self.developer_id)
         if self.version_number is not None:
-            et.SubElement(header, 'VersionNbr').text = self.version_number
+            et.SubElement(header, 'VersionNbr').text = str(self.version_number)
         if client_transaction_id is not None:
-            et.SubElement(header, 'ClientTxnId').text = client_transaction_id
+            et.SubElement(header, 'ClientTxnId').text = str(client_transaction_id)
 
         trans = et.SubElement(version1, 'Transaction')
         trans.append(transaction)
