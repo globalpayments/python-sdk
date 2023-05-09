@@ -371,3 +371,23 @@ class IntegrationGatewaysPorticoConnectorCreditTests(unittest.TestCase):
             .execute('gold standard')
         self.assertNotEqual(None, response)
         self.assertEqual('00', response.response_code)
+
+    def test_legacy_portico_creds(self):
+        legacy_config = ServicesConfig()
+        legacy_config.license_id = 375032
+        legacy_config.site_id = 375247
+        legacy_config.device_id = 7381760
+        legacy_config.username = "777703756680"
+        legacy_config.password = "78SVw5TrJ4xRi4$"
+        legacy_config.service_url = 'https://cert.api2.heartlandportico.com'
+        legacy_config.developer_id = '000000'
+        legacy_config.version_number = '0000'
+
+        ServicesContainer.configure(legacy_config, 'legacy_config')
+
+        response = self.card.authorize(10) \
+            .with_currency('USD') \
+            .with_allow_duplicates(True) \
+            .execute('legacy_config')
+        self.assertNotEqual(None, response)
+        self.assertEqual('00', response.response_code)
