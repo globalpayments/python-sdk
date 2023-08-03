@@ -10,6 +10,7 @@ import urllib3.contrib.pyopenssl
 import xmltodict
 import globalpayments as gp
 import datetime
+import pkg_resources
 from globalpayments.api.entities import (
     Address, BatchSummary, Customer, DebitMac, RecurringPaymentMethod,
     Schedule, ThreeDSecure, Transaction, TransactionSummary)
@@ -593,6 +594,7 @@ class PorticoConnector(XmlGateway):
     secret_api_key = None
     developer_id = None
     version_number = None
+    sdkNameVersion = None
 
     @property
     def supports_hosted_payments(self):
@@ -1145,6 +1147,10 @@ class PorticoConnector(XmlGateway):
             et.SubElement(header, 'VersionNbr').text = str(self.version_number)
         if client_transaction_id is not None:
             et.SubElement(header, 'ClientTxnId').text = str(client_transaction_id)
+        if self.sdkNameVersion is not None:
+            et.SubElement(header, 'SDKNameVersion').text = str(self.sdkNameVersion)
+        else:
+            et.SubElement(header, 'SDKNameVersion').text = str('python;version=')+str(self._get_release_version())
 
         trans = et.SubElement(version1, 'Transaction')
         trans.append(transaction)
@@ -1558,6 +1564,9 @@ class PorticoConnector(XmlGateway):
             return getattr(obj, attr)
         except AttributeError as _exc:
             return False
+
+    def _get_release_version(self):
+        return pkg_resources.require("GlobalPayments.Api")[0].version
 
 
 class RealexConnector(XmlGateway):
