@@ -8,7 +8,6 @@ from globalpayments.api.entities import Address, Transaction
 from globalpayments.api.entities.enums import AccountType, CheckType, EntryMethod, PaymentMethodType, SecCode
 from globalpayments.api.payment_methods import ECheck
 
-
 class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
     '''
     Ensure check transactions work
@@ -79,5 +78,26 @@ class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
             .with_address(self.address)\
             .with_allow_duplicates(True)\
             .execute('gold standard')
-        self.assertNotEqual(None, response);
+        self.assertNotEqual(None, response)
+        self.assertEqual('00', response.response_code)
+
+    def test_HPS_ACH_SUT(self):
+        gold_config = ServicesConfig()
+        gold_config.secret_api_key = 'skapi_cert_McU0AgBkx2EAldEfhhtolMw0RnvahBQAnXFdLYga-Q'  # 650777701408656
+        gold_config.service_url = 'https://cert.api2.heartlandportico.com'
+
+        ServicesContainer.configure(gold_config, 'ach_sut')
+
+        sut_check = ECheck()
+        sut_check.check_name = 'fake name'
+        sut_check.token = 'supt_ogqgTlwW5lN4cKmiHH7Msh5X'
+        sut_check.account_type = AccountType.Checking
+        sut_check.sec_code = SecCode.PPD
+
+        response = sut_check.charge(10)\
+            .with_currency('USD')\
+            .with_address(self.address)\
+            .with_allow_duplicates(True)\
+            .execute('ach_sut')
+        self.assertNotEqual(None, response)
         self.assertEqual('00', response.response_code)
