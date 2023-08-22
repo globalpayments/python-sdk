@@ -848,7 +848,6 @@ class PorticoConnector(XmlGateway):
             # check action
             et.SubElement(block1, 'CheckAction').text = 'SALE'
 
-            # account info
             if not has_token:
                 account_info = et.SubElement(block1, 'AccountInfo')
                 if check.routing_number:
@@ -869,6 +868,17 @@ class PorticoConnector(XmlGateway):
                         'AccountType').text = check.account_type.value
             else:
                 et.SubElement(block1, 'TokenValue').text = token_value
+                account_info = et.SubElement(block1, 'AccountInfo')
+                if check.check_number:
+                    et.SubElement(account_info,
+                                  'CheckNumber').text = check.check_number
+                if check.micr_number:
+                    et.SubElement(account_info,
+                                  'MICRData').text = check.micr_number
+                if check.account_type:
+                    et.SubElement(
+                        account_info,
+                        'AccountType').text = check.account_type.value
 
             if check.entry_mode:
                 et.SubElement(
