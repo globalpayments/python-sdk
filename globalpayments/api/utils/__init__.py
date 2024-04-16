@@ -66,16 +66,6 @@ class ElementTree(object):
         except IndexError:
             return None
 
-    def parse(self, source):
-        """
-        Converts a string or bytearray to an ElementTree
-        """
-
-        if isinstance(source, str):
-            self.doc = minidom.parseString(source)
-        elif isinstance(source, bytearray):
-            self.doc = minidom.parseString(str(source))
-
     def _create_element(self, tag_name):
         if tag_name.contains(':'):
             data = tag_name.split(':')
