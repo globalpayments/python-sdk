@@ -21,4 +21,4 @@ class ECommerceInfo(object):
         tomorrow = datetime.now() + timedelta(days=1)
         self.ship_day = tomorrow.day
         self.ship_month = tomorrow.month
-        self.payment_data_type = '3DSecure'
+        self.payment_data_type = "3DSecure"

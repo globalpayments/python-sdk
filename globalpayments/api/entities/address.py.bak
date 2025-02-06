@@ -123,7 +123,8 @@ class CountryUtils(object):
     country_code_map_by_country["Kazakhstan"] = "KZ"
     country_code_map_by_country["Kenya"] = "KE"
     country_code_map_by_country["Kiribati"] = "KI"
-    country_code_map_by_country["Korea (Democratic People's Republic of)"] = "KP"
+    country_code_map_by_country[
+        "Korea (Democratic People's Republic of)"] = "KP"
     country_code_map_by_country["Korea (Republic of)"] = "KR"
     country_code_map_by_country["Kuwait"] = "KW"
     country_code_map_by_country["Kyrgyzstan"] = "KG"
@@ -137,7 +138,8 @@ class CountryUtils(object):
     country_code_map_by_country["Lithuania"] = "LT"
     country_code_map_by_country["Luxembourg"] = "LU"
     country_code_map_by_country["Macao"] = "MO"
-    country_code_map_by_country["Macedonia (the former Yugoslav Republic of)"] = "MK"
+    country_code_map_by_country[
+        "Macedonia (the former Yugoslav Republic of)"] = "MK"
     country_code_map_by_country["Madagascar"] = "MG"
     country_code_map_by_country["Malawi"] = "MW"
     country_code_map_by_country["Malaysia"] = "MY"
@@ -191,7 +193,8 @@ class CountryUtils(object):
     country_code_map_by_country["Russian Federation"] = "RU"
     country_code_map_by_country["Rwanda"] = "RW"
     country_code_map_by_country["Saint BarthÃ©lemy"] = "BL"
-    country_code_map_by_country["Saint Helena, Ascension and Tristan da Cunha"] = "SH"
+    country_code_map_by_country[
+        "Saint Helena, Ascension and Tristan da Cunha"] = "SH"
     country_code_map_by_country["Saint Kitts and Nevis"] = "KN"
     country_code_map_by_country["Saint Lucia"] = "LC"
     country_code_map_by_country["Saint Martin (French part)"] = "MF"
@@ -212,7 +215,8 @@ class CountryUtils(object):
     country_code_map_by_country["Solomon Islands"] = "SB"
     country_code_map_by_country["Somalia"] = "SO"
     country_code_map_by_country["South Africa"] = "ZA"
-    country_code_map_by_country["South Georgia and the South Sandwich Islands"] = "GS"
+    country_code_map_by_country[
+        "South Georgia and the South Sandwich Islands"] = "GS"
     country_code_map_by_country["South Sudan"] = "SS"
     country_code_map_by_country["Spain"] = "ES"
     country_code_map_by_country["Sri Lanka"] = "LK"
@@ -241,8 +245,7 @@ class CountryUtils(object):
     country_code_map_by_country["Ukraine"] = "UA"
     country_code_map_by_country["United Arab Emirates"] = "AE"
     country_code_map_by_country[
-        "United Kingdom of Great Britain and Northern Ireland"
-    ] = "GB"
+        "United Kingdom of Great Britain and Northern Ireland"] = "GB"
     country_code_map_by_country["United States of America"] = "US"
     country_code_map_by_country["United States Minor Outlying Islands"] = "UM"
     country_code_map_by_country["Uruguay"] = "UY"
@@ -259,8 +262,9 @@ class CountryUtils(object):
     country_code_map_by_country["Zimbabwe"] = "ZW"
 
     country_map_by_country_code = dict()
-    for country in list(country_code_map_by_country.keys()):
-        country_map_by_country_code[country_code_map_by_country[country]] = country
+    for country in country_code_map_by_country.keys():
+        country_map_by_country_code[country_code_map_by_country[
+            country]] = country
 
     @staticmethod
     def is_country(address, country_code):
@@ -289,10 +293,8 @@ class CountryUtils(object):
             return None
 
         return CountryUtils.fuzzy_match(
-            CountryUtils.country_map_by_country_code,
-            country_code,
-            CountryUtils.significant_code_match,
-        )
+            CountryUtils.country_map_by_country_code, country_code,
+            CountryUtils.significant_code_match)
 
     @staticmethod
     def get_country_code_by_country(country):
@@ -303,10 +305,8 @@ class CountryUtils(object):
             return CountryUtils.country_code_map_by_country[country]
 
         match = CountryUtils.fuzzy_match(
-            CountryUtils.country_code_map_by_country,
-            country,
-            CountryUtils.significant_country_match,
-        )
+            CountryUtils.country_code_map_by_country, country,
+            CountryUtils.significant_country_match)
 
         if match is not None:
             return match
@@ -315,10 +315,8 @@ class CountryUtils(object):
             return None
 
         match = CountryUtils.fuzzy_match(
-            CountryUtils.country_map_by_country_code,
-            country,
-            CountryUtils.significant_code_match,
-        )
+            CountryUtils.country_map_by_country_code, country,
+            CountryUtils.significant_code_match)
 
         if match is not None:
             return match
@@ -332,7 +330,7 @@ class CountryUtils(object):
 
         # loop
         high_score = -1
-        for key in list(dictionary.keys()):
+        for key in dictionary.keys():
             score = CountryUtils.fuzzy_score(key, query)
 
             if score > significant_match and score > high_score:
@@ -414,7 +412,8 @@ class Address(object):
     def country(self, value):
         self._country = value
         if self._country_code is None:
-            self._country_code = CountryUtils.get_country_code_by_country(self._country)
+            self._country_code = CountryUtils.get_country_code_by_country(
+                self._country)
 
     @property
     def country_code(self):
@@ -424,4 +423,5 @@ class Address(object):
     def country_code(self, value):
         self._country_code = value
         if self._country is None:
-            self._country = CountryUtils.get_country_by_country_code(self._country_code)
+            self._country = CountryUtils.get_country_by_country_code(
+                self._country_code)

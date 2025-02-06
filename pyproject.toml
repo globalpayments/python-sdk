@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "GlobalPayments.Api"
+version = "2.0.1"
+description = "Global Payments Python SDK for integrating with Heartland and Global Payments merchant services APIs"
+authors = ["Heartland Payment Systems <EntApp_DevPortal@e-hps.com>"]
+license = "LICENSE.md"
+readme = "README.txt"
+homepage = "https://developer.heartlandpaymentsystems.com/"
+packages = [
+    { include = "globalpayments" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+xmltodict = "^0.14.2"
+jsonpickle = "^4.0.1"
+enum34 = "^1.1.10"
+urllib3 = "^2.3.0"
+certifi = "^2024.12.14"
+pyopenssl = "^24.3.0"
+idna = "^3.10"
+
+
+[tool.poetry.scripts]
+i-tests = "tests.runner:run_tests"
+portico-tests = "tests.runner:portico_tests"
+formatter = "scripts:run_black"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

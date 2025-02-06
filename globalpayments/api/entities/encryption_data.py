@@ -12,13 +12,13 @@ class EncryptionData(object):
     @staticmethod
     def version_1():
         rvalue = EncryptionData()
-        rvalue.version = '01'
+        rvalue.version = "01"
         return rvalue
 
     @staticmethod
     def version_2(ktb, track_number=None):
         rvalue = EncryptionData()
-        rvalue.version = '02'
+        rvalue.version = "02"
         rvalue.ktb = ktb
         rvalue.track_number = track_number
         return rvalue

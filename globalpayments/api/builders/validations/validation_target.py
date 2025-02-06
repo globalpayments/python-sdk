@@ -31,6 +31,5 @@ class ValidationTarget(object):
         if property_name is None:
             raise globalpayments.api.entities.exceptions.BuilderException()
 
-        self.precondition = ValidationClause(self.parent, self, property_name,
-                                             True)
+        self.precondition = ValidationClause(self.parent, self, property_name, True)
         return self.precondition

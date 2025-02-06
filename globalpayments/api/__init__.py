@@ -8,7 +8,11 @@ from globalpayments.api.entities.enums import (
 )
 from globalpayments.api.entities.exceptions import ConfigurationException
 from globalpayments.api.gateways import (
-    PayPlanConnector, PorticoConnector, RealexConnector, TableServiceConnector)
+    PayPlanConnector,
+    PorticoConnector,
+    RealexConnector,
+    TableServiceConnector,
+)
 
 
 class HostedPaymentConfig(object):
@@ -42,7 +46,9 @@ class HostedPaymentConfig(object):
     post_response = None
 
 
-class ServicesConfig(object):
+
+
+class GatewayConfig(object):
     """
     Configuration for connecting to a payment gateway
     """
@@ -98,32 +104,48 @@ class ServicesConfig(object):
     def validate(self):
         #  portico api key
         if self.secret_api_key is not None:
-            if (self.site_id is not None or self.license_id is not None
-                    or self.device_id is not None or self.username is not None
-                    or self.password is not None):
+            if (
+                self.site_id is not None
+                or self.license_id is not None
+                or self.device_id is not None
+                or self.username is not None
+                or self.password is not None
+            ):
                 raise ConfigurationException(
                     """Configuration contains both secret api key and legacy credentials.
-                    These are mutually exclusive.""")
+                    These are mutually exclusive."""
+                )
 
         #  legacy portico
-        if (self.site_id is not None or self.license_id is not None
-                or self.device_id is not None or self.username is not None
-                or self.password is not None):
-            if (self.site_id is None or self.license_id is None
-                    or self.device_id is None or self.username is None
-                    or self.password is None):
+        if (
+            self.site_id is not None
+            or self.license_id is not None
+            or self.device_id is not None
+            or self.username is not None
+            or self.password is not None
+        ):
+            if (
+                self.site_id is None
+                or self.license_id is None
+                or self.device_id is None
+                or self.username is None
+                or self.password is None
+            ):
                 raise ConfigurationException(
                     """Site, License, Device, Username and Password should all have a
-                    values for this configuration.""")
+                    values for this configuration."""
+                )
 
         #  realex
         if self.merchant_id is not None or self.shared_secret is not None:
             if self.merchant_id is None:
                 raise ConfigurationException(
-                    'merchant_id is required for this configuration.')
+                    "merchant_id is required for this configuration."
+                )
             if self.shared_secret is None:
                 raise ConfigurationException(
-                    'shared_secret is required for this configuration.')
+                    "shared_secret is required for this configuration."
+                )
 
         #  service url
         if self.service_url is None:
@@ -140,6 +162,9 @@ class ConfiguredServices(object):
 
 SERVICE_CONTAINER_INSTANCE = None
 
+
+class PorticoConfig(GatewayConfig):
+    pass
 
 class ServicesContainer(object):
     """
@@ -158,15 +183,14 @@ class ServicesContainer(object):
 
         if SERVICE_CONTAINER_INSTANCE is not None:
             return SERVICE_CONTAINER_INSTANCE
-        raise ConfigurationException('Services container not configured.')
+        raise ConfigurationException("Services container not configured.")
 
     @staticmethod
     def configure(config, config_name="default"):
         global SERVICE_CONTAINER_INSTANCE
 
-        if not isinstance(config, ServicesConfig):
-            raise ConfigurationException(
-                'config must be of type ServiceConfig')
+        if not isinstance(config, GatewayConfig):
+            raise ConfigurationException("config must be of type ServiceConfig")
 
         config.validate()
 
@@ -186,7 +210,7 @@ class ServicesContainer(object):
         if config.reservation_provider is not None:
             if config.reservation_provider is ReservationProviders.FreshTxt:
                 cs.reservation_connector = TableServiceConnector()
-                cs.reservation_connector.service_url = 'https://www.freshtxt.com/api31/'
+                cs.reservation_connector.service_url = "https://www.freshtxt.com/api31/"
                 cs.reservation_connector.timeout = config.timeout
 
         # configure gateways
@@ -213,13 +237,16 @@ class ServicesContainer(object):
             cs.gateway_connector.developer_id = config.developer_id
             cs.gateway_connector.version_number = config.version_number
             cs.gateway_connector.timeout = config.timeout
-            cs.gateway_connector.service_url = config.service_url \
-                + '/Hps.Exchange.PosGateway/PosGatewayService.asmx'
+            cs.gateway_connector.service_url = (
+                config.service_url + "/Hps.Exchange.PosGateway/PosGatewayService.asmx"
+            )
 
             cs.recurring_connector = PayPlanConnector()
             cs.recurring_connector.secret_api_key = config.secret_api_key
             cs.recurring_connector.timeout = config.timeout
-            cs.recurring_connector.service_url = config.service_url + '/Portico.PayPlan.v2/'
+            cs.recurring_connector.service_url = (
+                config.service_url + "/Portico.PayPlan.v2/"
+            )
 
         if SERVICE_CONTAINER_INSTANCE is None:
             SERVICE_CONTAINER_INSTANCE = ServicesContainer()

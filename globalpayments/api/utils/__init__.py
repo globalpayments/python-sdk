@@ -19,7 +19,7 @@ class ElementTree(object):
 
     def __init__(self):
         self.doc = minidom.Document()
-        self.namespaces['soap'] = 'http://schemas.xmlsoap.org/soap/envelope/'
+        self.namespaces["soap"] = "http://schemas.xmlsoap.org/soap/envelope/"
 
     def element(self, tag_name):
         """
@@ -34,11 +34,11 @@ class ElementTree(object):
         Creates a sub-element on a parent element
         """
 
-        value = ''
-        if 'value' in kwargs:
-            if kwargs['value'] is None:
+        value = ""
+        if "value" in kwargs:
+            if kwargs["value"] is None:
                 return None
-            value = kwargs['value']
+            value = kwargs["value"]
 
         child = self._create_element(tag_name)
         parent.element.appendChild(child)
@@ -67,10 +67,9 @@ class ElementTree(object):
             return None
 
     def _create_element(self, tag_name):
-        if tag_name.contains(':'):
-            data = tag_name.split(':')
-            return self.doc.createElement(data[0], data[1],
-                                          self.namespaces[data[0]])
+        if tag_name.contains(":"):
+            data = tag_name.split(":")
+            return self.doc.createElement(data[0], data[1], self.namespaces[data[0]])
         return self.doc.createElement(tag_name)
 
 
@@ -207,9 +206,8 @@ class GenerationUtils(object):
         if to_hash is None:
             return hashlib.sha1(shared_secret.encode()).hexdigest()
 
-        first_pass = hashlib.sha1('.'.join(to_hash).encode()).hexdigest()
-        return hashlib.sha1(
-            (first_pass + '.' + shared_secret).encode()).hexdigest()
+        first_pass = hashlib.sha1(".".join(to_hash).encode()).hexdigest()
+        return hashlib.sha1((first_pass + "." + shared_secret).encode()).hexdigest()
 
     @staticmethod
     def generate_order_id():
@@ -217,10 +215,13 @@ class GenerationUtils(object):
         Generates a pseudo-random order id
         """
 
-        return base64.b64encode(bytearray(str(uuid.uuid4()).encode())).decode() \
-            .replace('=', '') \
-            .replace('+', '-') \
-            .replace('/', '_')
+        return (
+            base64.b64encode(bytearray(str(uuid.uuid4()).encode()))
+            .decode()
+            .replace("=", "")
+            .replace("+", "-")
+            .replace("/", "_")
+        )
 
     @staticmethod
     def generate_recurring_key():
@@ -236,4 +237,4 @@ class GenerationUtils(object):
         Generates a timestamp in a Realex-compliant format (YYYYMMDDHHMMSS)
         """
 
-        return datetime.now().strftime('%Y%m%d%H%M%S')
+        return datetime.now().strftime("%Y%m%d%H%M%S")

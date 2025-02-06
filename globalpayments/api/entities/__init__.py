@@ -8,7 +8,10 @@ from globalpayments.api.entities.debit_mac import DebitMac
 from globalpayments.api.entities.ecommerce_info import ECommerceInfo
 from globalpayments.api.entities.encryption_data import EncryptionData
 from globalpayments.api.entities.enums import PaymentMethodType, TransactionType
-from globalpayments.api.entities.exceptions import ApiException, UnsupportedTransactionException
+from globalpayments.api.entities.exceptions import (
+    ApiException,
+    UnsupportedTransactionException,
+)
 from globalpayments.api.entities.three_d_secure import ThreeDSecure
 from globalpayments.api.entities.transaction_summary import TransactionSummary
 from globalpayments.api.payment_methods import TransactionReference
@@ -19,6 +22,7 @@ class Transaction(object):
     """
     Transaction Response
     """
+
     authorized_amount = None
     available_balance = None
     avs_response_code = None
@@ -105,9 +109,9 @@ class Transaction(object):
         self.transaction_reference.transaction_id = value
 
     @staticmethod
-    def from_id(transaction_id,
-                payment_method_type=PaymentMethodType.Credit,
-                order_id=None):
+    def from_id(
+        transaction_id, payment_method_type=PaymentMethodType.Credit, order_id=None
+    ):
         """
         Creates a `Transaction` object from a stored transaction ID.
         Used to expose management requests on the original transaction
@@ -130,9 +134,11 @@ class Transaction(object):
         :param amount: The additional amount to authorize
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Auth) \
-            .with_payment_method(self.transaction_reference) \
+        return (
+            gp.api.builders.ManagementBuilder(TransactionType.Auth)
+            .with_payment_method(self.transaction_reference)
             .with_amount(amount)
+        )
 
     def capture(self, amount=None):
         """
@@ -140,25 +146,29 @@ class Transaction(object):
         :param amount: The amount to capture
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Capture) \
-            .with_payment_method(self.transaction_reference) \
+        return (
+            gp.api.builders.ManagementBuilder(TransactionType.Capture)
+            .with_payment_method(self.transaction_reference)
             .with_amount(amount)
+        )
 
     def edit(self):
         """
         Edits the original transaction.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Edit) \
-            .with_payment_method(self.transaction_reference)
+        return gp.api.builders.ManagementBuilder(
+            TransactionType.Edit
+        ).with_payment_method(self.transaction_reference)
 
     def hold(self):
         """
         Places the original transaction on hold.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Hold) \
-            .with_payment_method(self.transaction_reference)
+        return gp.api.builders.ManagementBuilder(
+            TransactionType.Hold
+        ).with_payment_method(self.transaction_reference)
 
     def refund(self, amount=None):
         """
@@ -166,17 +176,20 @@ class Transaction(object):
         :param amount:The amount to refund/return
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Refund) \
-            .with_payment_method(self.transaction_reference) \
+        return (
+            gp.api.builders.ManagementBuilder(TransactionType.Refund)
+            .with_payment_method(self.transaction_reference)
             .with_amount(amount)
+        )
 
     def release(self):
         """
         Releases the original transaction from a hold.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Release) \
-            .with_payment_method(self.transaction_reference)
+        return gp.api.builders.ManagementBuilder(
+            TransactionType.Release
+        ).with_payment_method(self.transaction_reference)
 
     def reverse(self, amount=None):
         """
@@ -184,17 +197,20 @@ class Transaction(object):
         :param amount: The original authorization amount
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Reversal) \
-            .with_payment_method(self.transaction_reference) \
+        return (
+            gp.api.builders.ManagementBuilder(TransactionType.Reversal)
+            .with_payment_method(self.transaction_reference)
             .with_amount(amount)
+        )
 
     def void(self):
         """
         Voids the original transaction.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(TransactionType.Void) \
-            .with_payment_method(self.transaction_reference)
+        return gp.api.builders.ManagementBuilder(
+            TransactionType.Void
+        ).with_payment_method(self.transaction_reference)
 
 
 class RecurringEntity(object):
@@ -205,7 +221,7 @@ class RecurringEntity(object):
     id = None
     key = None
 
-    def create(self, config_name = 'default'):
+    def create(self, config_name="default"):
         """
         Creates a resource
         :return: RecurringEntity
@@ -213,22 +229,21 @@ class RecurringEntity(object):
 
         return gp.api.services.RecurringService.create(self, config_name)
 
-    def delete(self, force=False, config_name = 'default'):
+    def delete(self, force=False, config_name="default"):
         """
         Delete a record from the gateway.
         :param force: Indicates if the deletion should be forced
         :return: void
         """
         try:
-            return gp.api.services.RecurringService.delete(
-                self, force, config_name)
+            return gp.api.services.RecurringService.delete(self, force, config_name)
         except ApiException as exc:
             raise ApiException(
-                'Failed to delete record, see inner exception for more details. ',
-                exc)
+                "Failed to delete record, see inner exception for more details. ", exc
+            )
 
     @staticmethod
-    def find(identifier_name, identifier, config_name = 'default'):
+    def find(identifier_name, identifier, config_name="default"):
         """
         Searches for a specific record by `id`.
         :param identifier: The ID of the record to find
@@ -236,36 +251,36 @@ class RecurringEntity(object):
         """
         client = gp.api.ServicesContainer.instance().get_recurring_client(config_name)
         if client is not None and client.supports_retrieval:
-            response = gp.api.services.RecurringService.search() \
-                .add_search_criteria(identifier_name, identifier) \
+            response = (
+                gp.api.services.RecurringService.search()
+                .add_search_criteria(identifier_name, identifier)
                 .execute(config_name)
-            entity = response[0] if len(response) > 0 else None 
+            )
+            entity = response[0] if len(response) > 0 else None
             if entity is not None:
-                return gp.api.services.RecurringService.get(
-                    entity, config_name)
+                return gp.api.services.RecurringService.get(entity, config_name)
             return None
         raise UnsupportedTransactionException()
 
     @staticmethod
-    def find_all(entity, config_name = 'default'):
+    def find_all(entity, config_name="default"):
         """
         Lists all records of base type
         :return: Array
         """
-        client = gp.api.ServicesContainer.instance().get_recurring_client(
-            config_name)
+        client = gp.api.ServicesContainer.instance().get_recurring_client(config_name)
         if client is not None and client.supports_retrieval:
-            return gp.api.services.RecurringService.search(entity).execute(
-                config_name)
+            return gp.api.services.RecurringService.search(entity).execute(config_name)
         raise UnsupportedTransactionException()
 
-    def save_changes(self, config_name = 'default'):
+    def save_changes(self, config_name="default"):
         try:
             return gp.api.services.RecurringService.edit(self, config_name)
         except ApiException as exc:
             raise ApiException(
-                'Update failed, see inner exception for more details. ' +
-                exc.message, exc)
+                "Update failed, see inner exception for more details. " + exc.message,
+                exc,
+            )
 
 
 class Customer(RecurringEntity):
@@ -309,14 +324,15 @@ class Customer(RecurringEntity):
         return method
 
     @staticmethod
-    def find(identifier, config_name = 'default'):
-        test = RecurringEntity.find('customerIdentifier', identifier, config_name)
+    def find(identifier, config_name="default"):
+        test = RecurringEntity.find("customerIdentifier", identifier, config_name)
         return test
 
     @staticmethod
-    def find_all(config_name = 'default'):
-        entity = Customer();
+    def find_all(config_name="default"):
+        entity = Customer()
         return RecurringEntity.find_all(entity, config_name)
+
 
 class RecurringPaymentMethod(RecurringEntity):
     address = None
@@ -341,22 +357,26 @@ class RecurringPaymentMethod(RecurringEntity):
             self.payment_method = payment_method_or_customer
 
     def authorize(self, amount=None):
-        return gp.api.builders.AuthorizationBuilder(TransactionType.Auth, self) \
-            .with_amount(amount) \
+        return (
+            gp.api.builders.AuthorizationBuilder(TransactionType.Auth, self)
+            .with_amount(amount)
             .with_one_time_payment(True)
+        )
 
     def charge(self, amount=None):
-        return gp.api.builders.AuthorizationBuilder(TransactionType.Sale, self) \
-            .with_amount(amount) \
+        return (
+            gp.api.builders.AuthorizationBuilder(TransactionType.Sale, self)
+            .with_amount(amount)
             .with_one_time_payment(True)
+        )
 
     def refund(self, amount=None):
-        return gp.api.builders.AuthorizationBuilder(TransactionType.Refund, self) \
-            .with_amount(amount)
+        return gp.api.builders.AuthorizationBuilder(
+            TransactionType.Refund, self
+        ).with_amount(amount)
 
     def verify(self):
-        return gp.api.builders.AuthorizationBuilder(TransactionType.Verify,
-                                                    self)
+        return gp.api.builders.AuthorizationBuilder(TransactionType.Verify, self)
 
     def add_schedule(self, schedule_id):
         data = Schedule()
@@ -366,13 +386,14 @@ class RecurringPaymentMethod(RecurringEntity):
         return data
 
     @staticmethod
-    def find(identifier, config_name = 'default'):
-        return RecurringEntity.find('paymentMethodIdentifier', identifier, config_name)
+    def find(identifier, config_name="default"):
+        return RecurringEntity.find("paymentMethodIdentifier", identifier, config_name)
 
     @staticmethod
-    def find_all(config_name = 'default'):
-        entity = RecurringPaymentMethod();
+    def find_all(config_name="default"):
+        entity = RecurringPaymentMethod()
         return RecurringEntity.find_all(entity, config_name)
+
 
 class Schedule(RecurringEntity):
     amount = None
@@ -423,11 +444,11 @@ class Schedule(RecurringEntity):
         return self
 
     def with_frequency(self, value):
-        self.frequency= value
+        self.frequency = value
         return self
 
     def with_currency(self, value):
-        self.currency= value
+        self.currency = value
         return self
 
     def with_email_receipt(self, value):
@@ -439,10 +460,10 @@ class Schedule(RecurringEntity):
         self.payment_key = payment_key
 
     @staticmethod
-    def find(identifier, config_name = 'default'):
-        return RecurringEntity.find('scheduleIdentifier', identifier, config_name)
+    def find(identifier, config_name="default"):
+        return RecurringEntity.find("scheduleIdentifier", identifier, config_name)
 
     @staticmethod
-    def find_all(config_name = 'default'):
-        entity = Schedule();
+    def find_all(config_name="default"):
+        entity = Schedule()
         return RecurringEntity.find_all(entity, config_name)

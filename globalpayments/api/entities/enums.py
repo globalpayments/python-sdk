@@ -2,9 +2,9 @@ from enum import Enum, IntEnum
 
 
 class AliasAction(Enum):
-    Create = 'CREATE'
-    Add = 'ADD'
-    Delete = 'DELETE'
+    Create = "CREATE"
+    Add = "ADD"
+    Delete = "DELETE"
 
 
 class AddressType(Enum):
@@ -33,16 +33,18 @@ class ECommerceChannel(Enum):
     """
     Identifies eCommerce vs mail order / telephone order (MOTO) transactions.
     """
+
     #  Identifies eCommerce transactions.
-    ECOM = 'ECOM'
+    ECOM = "ECOM"
     #  Identifies mail order / telephone order (MOTO) transactions.
-    MOTO = 'MOTO'
+    MOTO = "MOTO"
 
 
 class EmvChipCondition(Enum):
     """
     Indicates the chip condition for failed EMV chip reads
     """
+
     """
     Use this condition type when the current chip read failed but
     the previous transaction on the same device was either a
@@ -74,6 +76,7 @@ class PaymentMethodType(IntEnum):
     """
     Indicates a payment method type.
     """
+
     """
     Indicates a payment method reference.
     Should be accompanied by a gateway transaction ID.
@@ -121,11 +124,11 @@ class EntryMethod(Enum):
     """
 
     #  Indicates manual entry.
-    Manual = 'manual'
+    Manual = "manual"
     #  Indicates swipe entry.
-    Swipe = 'swipe'
+    Swipe = "swipe"
     #  Indicates proximity/contactless entry.
-    Proximity = 'proximity'
+    Proximity = "proximity"
 
 
 class GiftEntryMethod(Enum):
@@ -256,11 +259,11 @@ class TaxType(Enum):
     """
 
     #  Indicates tax was not used
-    NotUsed = 'NOTUSED'
+    NotUsed = "NOTUSED"
     #  Indicates sales tax was applied
-    SalesTax = 'SALESTAX'
+    SalesTax = "SALESTAX"
     #  Indicates tax exemption
-    TaxExempt = 'TAXEXEMPT'
+    TaxExempt = "TAXEXEMPT"
 
 
 class CurrencyType(Enum):
@@ -269,15 +272,15 @@ class CurrencyType(Enum):
     """
 
     #  Indicates true currency
-    Currency = 'CURRENCY'
+    Currency = "CURRENCY"
     #  Indicates loyalty points
-    Points = 'POINTS'
+    Points = "POINTS"
     #  Indicates cash benefits
-    CashBenefits = 'CASH_BENEFITS'
+    CashBenefits = "CASH_BENEFITS"
     #  Indicates food stamps
-    FoodStamps = 'FOODSTAMPS'
+    FoodStamps = "FOODSTAMPS"
     #  Indicates vouchers
-    Voucher = 'VOUCHER'
+    Voucher = "VOUCHER"
 
 
 class AccountType(Enum):
@@ -286,9 +289,9 @@ class AccountType(Enum):
     """
 
     #  Indicates a checking account
-    Checking = 'CHECKING'
+    Checking = "CHECKING"
     #  Indicates a savings account
-    Savings = 'SAVINGS'
+    Savings = "SAVINGS"
 
 
 class CheckType(Enum):
@@ -297,11 +300,11 @@ class CheckType(Enum):
     """
 
     #  indicates a personal check
-    Personal = 'PERSONAL'
+    Personal = "PERSONAL"
     #  Indicates a business check
-    Business = 'BUSINESS'
+    Business = "BUSINESS"
     #  Indicates a payroll check
-    Payroll = 'PAYROLL'
+    Payroll = "PAYROLL"
 
 
 class SecCode(Enum):
@@ -310,17 +313,17 @@ class SecCode(Enum):
     """
 
     #  Indicates prearranged payment and deposit (PPD)
-    PPD = 'PPD'
+    PPD = "PPD"
     #  Indicates cash concentration or disbursement (CCD)
-    CCD = 'CCD'
+    CCD = "CCD"
     #  Indicates point of purchase entry (POP)
-    POP = 'POP'
+    POP = "POP"
     #  Indicates internet initiated entry (WEB)
-    WEB = 'WEB'
+    WEB = "WEB"
     #  Indicates telephone initiated entry (TEL)
-    TEL = 'TEL'
+    TEL = "TEL"
     #  Indicates verification only
-    EBRONZE = 'EBRONZE'
+    EBRONZE = "EBRONZE"
 
 
 class ReportType(IntEnum):
@@ -352,11 +355,11 @@ class TimeZoneConversion(Enum):
     """
 
     #  Indicates time is in coordinated universal time (UTC).
-    UTC = 'UTC'
+    UTC = "UTC"
     #  Indicates the merchant is responsible for timezone conversions.
-    Merchant = 'Merchant'
+    Merchant = "Merchant"
     #  Indicates the datacenter, gateway, or processor is responsible for timezone conversions.
-    Datacenter = 'Datacenter'
+    Datacenter = "Datacenter"
 
 
 class RecurringType(Enum):
@@ -365,9 +368,9 @@ class RecurringType(Enum):
     """
 
     #  Indicates a fixed number of payments
-    Fixed = 'Fixed'
+    Fixed = "Fixed"
     #  Indicates a variable number of payments.
-    Variable = 'Variable'
+    Variable = "Variable"
 
 
 class RecurringSequence(Enum):
@@ -376,11 +379,11 @@ class RecurringSequence(Enum):
     """
 
     #  Indicates the transaction is the first of a recurring schedule.
-    First = 'First'
+    First = "First"
     #  Indicates the transaction is a subsequent payment of a recurring schedule.
-    Subsequent = 'Subsequent'
+    Subsequent = "Subsequent"
     #  Indicates the transaction is the last of a recurring schedule.
-    Last = 'Last'
+    Last = "Last"
 
 
 class EmailReceipt(Enum):
@@ -390,13 +393,13 @@ class EmailReceipt(Enum):
     """
 
     #  Indicates an email receipt should never be sent.
-    Never = 'Never'
+    Never = "Never"
     #  Indicates an email receipt should always be sent.
-    All = 'All'
+    All = "All"
     #  Indicates an email receipt should only be sent on approvals.
-    Approvals = 'Approvals'
+    Approvals = "Approvals"
     #  Indicates an email receipt should only be sent on declines.
-    Declines = 'Declines'
+    Declines = "Declines"
 
 
 class PaymentSchedule(Enum):
@@ -405,11 +408,11 @@ class PaymentSchedule(Enum):
     """
 
     #  Indicates a specified date.
-    Dynamic = 'Dynamic'
+    Dynamic = "Dynamic"
     #  Indicates the first of the month.
-    FirstDayOfTheMonth = 'FirstDayOfTheMonth'
+    FirstDayOfTheMonth = "FirstDayOfTheMonth"
     #  Indicates the last of the month.
-    LastDayOfTheMonth = 'LastDayOfTheMonth'
+    LastDayOfTheMonth = "LastDayOfTheMonth"
 
 
 class ScheduleFrequency(Enum):
@@ -418,21 +421,21 @@ class ScheduleFrequency(Enum):
     """
 
     #  Indicates a schedule should process payments weekly.
-    Weekly = 'Weekly'
+    Weekly = "Weekly"
     #  Indicates a schedule should process payments bi-weekly (every other week).
-    BiWeekly = 'Bi-Weekly'
+    BiWeekly = "Bi-Weekly"
     #  Indicates a schedule should process payments bi-monthly (twice a month).
-    BiMonthly = 'Bi-Monthly'
+    BiMonthly = "Bi-Monthly"
     #  Indicates a schedule should process payments semi-monthly (every other month).
-    SemiMonthly = 'Semi-Monthly'
+    SemiMonthly = "Semi-Monthly"
     #  Indicates a schedule should process payments monthly.
-    Monthly = 'Monthly'
+    Monthly = "Monthly"
     #  Indicates a schedule should process payments quarterly.
-    Quarterly = 'Quarterly'
+    Quarterly = "Quarterly"
     #  Indicates a schedule should process payments semi-annually
-    SemiAnnually = 'Semi-Annually'
+    SemiAnnually = "Semi-Annually"
     #  Indicates a schedule should process payments annually. (twice a year).
-    Annually = 'Annually'
+    Annually = "Annually"
 
 
 class ReasonCode(Enum):
@@ -442,17 +445,17 @@ class ReasonCode(Enum):
     """
 
     # Indicates fraud
-    Fraud = 'FRAUD'
+    Fraud = "FRAUD"
     # Indicates a false positive
-    FalsePositive = 'FALSEPOSITIVE'
+    FalsePositive = "FALSEPOSITIVE"
     # Indicates desired good is out of stock
-    OutOfStock = 'OUTOFSTOCK'
+    OutOfStock = "OUTOFSTOCK"
     # Indicates desired good is in stock
-    InStock = 'INSTOCK'
+    InStock = "INSTOCK"
     # Indicates another reason
-    Other = 'OTHER'
+    Other = "OTHER"
     # Indicates reason was not given
-    NotGiven = 'NOTGIVEN'
+    NotGiven = "NOTGIVEN"
 
 
 class HppVersion(Enum):
@@ -462,9 +465,9 @@ class HppVersion(Enum):
     """
 
     #  HPP Version 1
-    VERSION_1 = '1'
+    VERSION_1 = "1"
     #  HPP Version 2
-    VERSION_2 = '2'
+    VERSION_2 = "2"
 
 
 class FraudFilterMode(Enum):
@@ -473,9 +476,9 @@ class FraudFilterMode(Enum):
     """
 
     #  Fraud filter will behave as configured in RealControl
-    NONE = 0,
+    NONE = (0,)
     #  Disables the fraud filter
-    OFF = 1,
+    OFF = (1,)
     #  Sets the fraud filter to passive mode
     PASSIVE = 2
 
@@ -484,4 +487,5 @@ class ReservationProviders(Enum):
     """
     Specifies the reservation service provider
     """
+
     FreshTxt = 1

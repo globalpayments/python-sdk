@@ -37,11 +37,9 @@ class GatewayException(ApiException):
     #  the gateway response message
     response_message = None
 
-    def __init__(self,
-                 message,
-                 response_code=None,
-                 response_message=None,
-                 inner_exception=None):
+    def __init__(
+        self, message, response_code=None, response_message=None, inner_exception=None
+    ):
         ApiException.__init__(self, message, inner_exception)
         self.response_code = response_code
         self.response_message = response_message
@@ -63,5 +61,10 @@ class UnsupportedTransactionException(ApiException):
 
     def __init__(self, message=None):
         ApiException.__init__(
-            self, ('Transaction type not supported for this payment method.'
-                   if message is None else message))
+            self,
+            (
+                "Transaction type not supported for this payment method."
+                if message is None
+                else message
+            ),
+        )

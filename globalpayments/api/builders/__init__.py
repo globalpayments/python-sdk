@@ -27,7 +27,7 @@ class BaseBuilder(object):
 
     def __getattr__(self, name):
         def wrapper(*args):
-            if name[:5] == 'with_':
+            if name[:5] == "with_":
                 self.set_property_if_exists(name[5:], args[0])
                 return self
 
@@ -46,7 +46,7 @@ class BaseBuilder(object):
         if hasattr(self, args[0]):
             setattr(self, args[0], args[1])
         else:
-            raise BuilderException('Unknown property {}'.format(args[0]))
+            raise BuilderException("Unknown property {}".format(args[0]))
 
 
 class TransactionBuilder(BaseBuilder):
@@ -107,7 +107,7 @@ class AuthorizationBuilder(TransactionBuilder):
 
     def with_address(self, address, address_type=AddressType.Billing):
         if not isinstance(address, Address):
-            raise BuilderException('address must be of type Address')
+            raise BuilderException("address must be of type Address")
         address.address_type = address_type
         if address_type is AddressType.Billing:
             self.billing_address = address
@@ -126,8 +126,10 @@ class AuthorizationBuilder(TransactionBuilder):
         return self
 
     def with_client_transaction_id(self, value):
-        if (self.transaction_type is TransactionType.Reversal
-                or self.transaction_type is TransactionType.Refund):
+        if (
+            self.transaction_type is TransactionType.Reversal
+            or self.transaction_type is TransactionType.Refund
+        ):
             if isinstance(self.payment_method, TransactionReference):
                 self.payment_method.client_transaction_id = value
             else:
@@ -143,12 +145,11 @@ class AuthorizationBuilder(TransactionBuilder):
         return self
 
     def with_hosted_payment_data(self, value):
-        client = ServicesContainer.instance().get_client('default')
+        client = ServicesContainer.instance().get_client("default")
         if client.supports_hosted_payments:
             self.hosted_payment_data = value
             return self
-        raise BuilderException(
-            'Your current gateway does not support hosted payments.')
+        raise BuilderException("Your current gateway does not support hosted payments.")
 
     def with_offline_auth_code(self, value):
         self.offline_auth_code = value
@@ -212,48 +213,59 @@ class AuthorizationBuilder(TransactionBuilder):
         client = ServicesContainer.instance().get_client(config_name)
         if client and client.supports_hosted_payments:
             return client.serialize_request(self)
-        raise BuilderException(
-            'Your current gateway does not support hosted payments.')
+        raise BuilderException("Your current gateway does not support hosted payments.")
 
     def setup_validations(self):
-        self.validations.of(TransactionType.Auth | TransactionType.Sale |
-                            TransactionType.Refund | TransactionType.AddValue) \
-            .check('amount').is_not_none() \
-            .check('currency').is_not_none() \
-            .check('payment_method').is_not_none()
-
-        self.validations.of(TransactionType.Auth |
-                            TransactionType.Sale |
-                            TransactionType.Verify) \
-            .with_constraint('transaction_modifier', TransactionModifier.HostedRequest) \
-            .check('amount').is_not_none() \
-            .check('currency').is_not_none()
-
-        self.validations.of(TransactionType.Auth | TransactionType.Sale) \
-            .with_constraint('transaction_modifier', TransactionModifier.Offline) \
-            .check('amount').is_not_none() \
-            .check('currency').is_not_none() \
-            .check('offline_auth_code').is_not_none()
-
-        self.validations.of(TransactionType.BenefitWithdrawal) \
-            .with_constraint('transaction_modifier', TransactionModifier.CashBack) \
-            .check('amount').is_not_none() \
-            .check('currency').is_not_none() \
-            .check('payment_method').is_not_none()
+        self.validations.of(
+            TransactionType.Auth
+            | TransactionType.Sale
+            | TransactionType.Refund
+            | TransactionType.AddValue
+        ).check("amount").is_not_none().check("currency").is_not_none().check(
+            "payment_method"
+        ).is_not_none()
 
         self.validations.of(
-            TransactionType.Balance).check('payment_method').is_not_none()
-
-        self.validations.of(TransactionType.Alias) \
-            .check('alias_action').is_not_none() \
-            .check('alias').is_not_none()
+            TransactionType.Auth | TransactionType.Sale | TransactionType.Verify
+        ).with_constraint(
+            "transaction_modifier", TransactionModifier.HostedRequest
+        ).check(
+            "amount"
+        ).is_not_none().check(
+            "currency"
+        ).is_not_none()
 
         self.validations.of(
-            TransactionType.Replace).check('replacement_card').is_not_none()
+            TransactionType.Auth | TransactionType.Sale
+        ).with_constraint("transaction_modifier", TransactionModifier.Offline).check(
+            "amount"
+        ).is_not_none().check(
+            "currency"
+        ).is_not_none().check(
+            "offline_auth_code"
+        ).is_not_none()
 
-        self.validations.of(0) \
-            .with_constraint('payment_method', PaymentMethodType.ACH) \
-            .check('billing_address').is_not_none()
+        self.validations.of(TransactionType.BenefitWithdrawal).with_constraint(
+            "transaction_modifier", TransactionModifier.CashBack
+        ).check("amount").is_not_none().check("currency").is_not_none().check(
+            "payment_method"
+        ).is_not_none()
+
+        self.validations.of(TransactionType.Balance).check(
+            "payment_method"
+        ).is_not_none()
+
+        self.validations.of(TransactionType.Alias).check(
+            "alias_action"
+        ).is_not_none().check("alias").is_not_none()
+
+        self.validations.of(TransactionType.Replace).check(
+            "replacement_card"
+        ).is_not_none()
+
+        self.validations.of(0).with_constraint(
+            "payment_method", PaymentMethodType.ACH
+        ).check("billing_address").is_not_none()
 
 
 class ManagementBuilder(TransactionBuilder):
@@ -329,17 +341,20 @@ class ManagementBuilder(TransactionBuilder):
         return client.manage_transaction(self)
 
     def setup_validations(self):
-        self.validations.of(TransactionType.Capture | TransactionType.Edit |
-                            TransactionType.Hold | TransactionType.Release) \
-            .check('transaction_id').is_not_none()
+        self.validations.of(
+            TransactionType.Capture
+            | TransactionType.Edit
+            | TransactionType.Hold
+            | TransactionType.Release
+        ).check("transaction_id").is_not_none()
 
-        self.validations.of(TransactionType.Edit) \
-            .with_constraint('transaction_modifier', TransactionModifier.LevelII) \
-            .check('tax_type').is_not_none()
+        self.validations.of(TransactionType.Edit).with_constraint(
+            "transaction_modifier", TransactionModifier.LevelII
+        ).check("tax_type").is_not_none()
 
-        self.validations.of(TransactionType.Refund) \
-            .when('amount').is_not_none() \
-            .check('currency').is_not_none()
+        self.validations.of(TransactionType.Refund).when("amount").is_not_none().check(
+            "currency"
+        ).is_not_none()
 
 
 class RecurringBuilder(TransactionBuilder):
@@ -374,11 +389,13 @@ class RecurringBuilder(TransactionBuilder):
         return client.process_recurring(self)
 
     def setup_validations(self):
-        self.validations.of(TransactionType.Edit | TransactionType.Delete | TransactionType.Fetch) \
-            .check('key').is_not_none()
-
         self.validations.of(
-            TransactionType.Search).check('search_criteria').is_not_none()
+            TransactionType.Edit | TransactionType.Delete | TransactionType.Fetch
+        ).check("key").is_not_none()
+
+        self.validations.of(TransactionType.Search).check(
+            "search_criteria"
+        ).is_not_none()
 
 
 class ReportBuilder(BaseBuilder):
@@ -417,11 +434,10 @@ class TransactionReportBuilder(ReportBuilder):
         ReportBuilder.__init__(self, report_type)
 
     def setup_validations(self):
-        self.validations.of(ReportType.TransactionDetail) \
-            .check('transaction_id').is_not_none() \
-            .check('device_id').is_none() \
-            .check('end_date').is_none() \
-            .check('start_date').is_none()
+        self.validations.of(ReportType.TransactionDetail).check(
+            "transaction_id"
+        ).is_not_none().check("device_id").is_none().check("end_date").is_none().check(
+            "start_date"
+        ).is_none()
 
-        self.validations.of(
-            ReportType.Activity).check('transaction_id').is_none()
+        self.validations.of(ReportType.Activity).check("transaction_id").is_none()

@@ -9,6 +9,7 @@ class ManagementBuilder(TransactionBuilder):
     Used to follow up transactions for the supported
     payment method types.
     """
+
     _amount = None
     _auth_amount = None
     _currency = None
@@ -72,13 +73,17 @@ class ManagementBuilder(TransactionBuilder):
         return client.manage_transaction(self)
 
     def setup_validations(self):
-        self.validations.of(TransactionType.Capture | TransactionType.Edit |
-                            TransactionType.Hold | TransactionType.Release) \
-            .check('_transaction_id').is_not_none()
+        self.validations.of(
+            TransactionType.Capture
+            | TransactionType.Edit
+            | TransactionType.Hold
+            | TransactionType.Release
+        ).check("_transaction_id").is_not_none()
 
-        self.validations.of(TransactionType.Edit).with_constraint(TransactionModifier.LevelII) \
-            .check('_tax_type').is_not_none()
+        self.validations.of(TransactionType.Edit).with_constraint(
+            TransactionModifier.LevelII
+        ).check("_tax_type").is_not_none()
 
-        self.validations.of(TransactionType.Refund) \
-            .when('_amount').is_not_none() \
-            .check('_currency').is_not_none()
+        self.validations.of(TransactionType.Refund).when("_amount").is_not_none().check(
+            "_currency"
+        ).is_not_none()

@@ -9,7 +9,7 @@ class Validations(object):
         self.rules = {}
 
     def of(self, type_name):
-        '''
+        """
         Creates a new `ValidationTarget` for the given
         transaction type mask.
 
@@ -17,7 +17,7 @@ class Validations(object):
         @param type_name: Mask of transaction types
         @rtype: ValidationTarget
         @return: The current validation
-        '''
+        """
         if type_name not in self.rules:
             self.rules[type_name] = []
 
@@ -26,15 +26,15 @@ class Validations(object):
         return target
 
     def validate(self, builder):
-        '''
+        """
         Validates a given builder with the defined validation rules
 
         :type builder: BaseBuilder
         :param builder: The builder
-        '''
+        """
 
         for key in self.rules:
-            value = self._get_property_value(builder, 'transaction_type')
+            value = self._get_property_value(builder, "transaction_type")
 
             if value != key & value:
                 continue
@@ -46,7 +46,8 @@ class Validations(object):
                 #  modifier
                 if validation.constraint_name is not None:
                     modifier = self._get_property_value(
-                        builder, validation.constraint_name)
+                        builder, validation.constraint_name
+                    )
                     if validation.constraint_value is not modifier:
                         continue
 
@@ -57,7 +58,8 @@ class Validations(object):
 
                 if not validation.clause.callback(builder):
                     raise globalpayments.api.entities.exceptions.BuilderException(
-                        validation.clause.message)
+                        validation.clause.message
+                    )
 
     @staticmethod
     def _get_property_value(obj, comp):

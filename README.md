@@ -32,7 +32,7 @@ This SDK makes it easy to integrate your Python application with our Card Not Pr
 
 ## Requirements
 
-- Python 2.7+ or Python 3.0+
+- Python 3.10+
 - OpenSSL 1.0.1+
 
 ## Installation

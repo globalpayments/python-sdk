@@ -2,6 +2,7 @@ class TransactionSummary(object):
     """
     Transaction-level report data
     """
+
     amount = None
     convenience_amount = None
     shipping_amount = None

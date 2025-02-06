@@ -1,5 +1,5 @@
-'''
-'''
+"""
+"""
 
 import base64
 import xml.etree.cElementTree as et
@@ -10,27 +10,60 @@ import urllib3.contrib.pyopenssl
 import xmltodict
 import globalpayments as gp
 import datetime
-import pkg_resources
+from importlib.metadata import version
 from globalpayments.api.entities import (
-    Address, BatchSummary, Customer, DebitMac, RecurringPaymentMethod,
-    Schedule, ThreeDSecure, Transaction, TransactionSummary)
+    Address,
+    BatchSummary,
+    Customer,
+    DebitMac,
+    RecurringPaymentMethod,
+    Schedule,
+    ThreeDSecure,
+    Transaction,
+    TransactionSummary,
+)
 from globalpayments.api.entities.enums import (
-    AccountType, AddressType, AliasAction, CheckType, EmvChipCondition,
-    EntryMethod, FraudFilterMode, HppVersion, PaymentMethodType,
-    PaymentSchedule, ReportType, SecCode, TransactionType, TransactionModifier)
+    AccountType,
+    AddressType,
+    AliasAction,
+    CheckType,
+    EmvChipCondition,
+    EntryMethod,
+    FraudFilterMode,
+    HppVersion,
+    PaymentMethodType,
+    PaymentSchedule,
+    ReportType,
+    SecCode,
+    TransactionType,
+    TransactionModifier,
+)
 from globalpayments.api.entities.exceptions import (
-    ApiException, BuilderException, GatewayException,
-    UnsupportedTransactionException)
+    ApiException,
+    BuilderException,
+    GatewayException,
+    UnsupportedTransactionException,
+)
 from globalpayments.api.gateways.gateway_response import GatewayResponse
 from globalpayments.api.gateways.table_service_connector import TableServiceConnector
 from globalpayments.api.payment_methods import (
-    Balanceable, CardData, Credit, CreditCardData, ECheck, Encryptable,
-    GiftCard, PaymentMethod, PinProtected, TrackData, Tokenizable,
-    TransactionReference)
+    Balanceable,
+    CardData,
+    Credit,
+    CreditCardData,
+    ECheck,
+    Encryptable,
+    GiftCard,
+    PaymentMethod,
+    PinProtected,
+    TrackData,
+    Tokenizable,
+    TransactionReference,
+)
 from globalpayments.api.utils import GenerationUtils
 
 urllib3.contrib.pyopenssl.inject_into_urllib3()
-HTTP = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
+HTTP = urllib3.PoolManager(cert_reqs="CERT_REQUIRED", ca_certs=certifi.where())
 
 
 class Gateway(object):
@@ -42,17 +75,15 @@ class Gateway(object):
     def __init__(self, content_type):
         self._content_type = content_type
 
-    def send_request(self, verb, endpoint, data=None,
-                     query_string_params=None):
+    def send_request(self, verb, endpoint, data=None, query_string_params=None):
         query_string = self._build_query_string(query_string_params)
         url = self.service_url + endpoint + query_string
-        request_headers = {'Content-Type': self._content_type}
+        request_headers = {"Content-Type": self._content_type}
         for key in self.headers:
             request_headers[key] = self.headers[key]
 
         try:
-            request = HTTP.request(
-                verb, url, headers=request_headers, body=data)
+            request = HTTP.request(verb, url, headers=request_headers, body=data)
             raw_response = request.data
             response = GatewayResponse()
             response.status_code = request.status
@@ -60,42 +91,41 @@ class Gateway(object):
             return response
         except Exception as exc:
             raise GatewayException(
-                'Error occurred while communicating with gateway.', exc)
+                "Error occurred while communicating with gateway.", exc
+            )
 
     @staticmethod
     def _build_query_string(query_string_params):
         if query_string_params is None:
-            return ''
-        return ''
+            return ""
+        return ""
 
 
 class RestGateway(Gateway):
     def __init__(self):
-        Gateway.__init__(self, 'application/json')
+        Gateway.__init__(self, "application/json")
 
-    def do_transaction(self,
-                       verb,
-                       endpoint,
-                       data=None,
-                       query_string_params=None):
+    def do_transaction(self, verb, endpoint, data=None, query_string_params=None):
         response = self.send_request(verb, endpoint, data, query_string_params)
         if response.status_code is not 200 and response.status_code is not 204:
             parsed = jsonpickle.decode(response.raw_response)
-            error = parsed if 'error' not in parsed else parsed['error']
-            raise GatewayException('Status Code: {} - {}'.format(
-                response.status_code, error['message']))
+            error = parsed if "error" not in parsed else parsed["error"]
+            raise GatewayException(
+                "Status Code: {} - {}".format(response.status_code, error["message"])
+            )
         return response.raw_response
 
 
 class XmlGateway(Gateway):
     def __init__(self):
-        Gateway.__init__(self, 'text/xml')
+        Gateway.__init__(self, "text/xml")
 
     def do_transaction(self, request):
-        response = self.send_request('POST', '', request)
+        response = self.send_request("POST", "", request)
         if response.status_code is not 200:
-            raise GatewayException('Unexpected http status code [{}]'.format(
-                response.status_code))
+            raise GatewayException(
+                "Unexpected http status code [{}]".format(response.status_code)
+            )
         return response.raw_response
 
 
@@ -110,9 +140,11 @@ class PayPlanConnector(RestGateway):
     def secret_api_key(self, value):
         self._secret_api_key = value
 
-        if (value is not None):
+        if value is not None:
             encoded_value = base64.b64encode(bytearray(value.encode()))
-            self.headers['Authorization'] = 'Basic {}'.format(encoded_value.decode('ascii'))
+            self.headers["Authorization"] = "Basic {}".format(
+                encoded_value.decode("ascii")
+            )
 
     @property
     def supports_retrieval(self):
@@ -128,36 +160,43 @@ class PayPlanConnector(RestGateway):
     def process_recurring(self, builder):
         request = {}
 
-        if (builder.transaction_type is TransactionType.Create
-                or builder.transaction_type is TransactionType.Edit):
+        if (
+            builder.transaction_type is TransactionType.Create
+            or builder.transaction_type is TransactionType.Edit
+        ):
             if isinstance(builder.entity, Customer):
                 self._build_customer(request, builder.entity)
             elif isinstance(builder.entity, RecurringPaymentMethod):
-                self._build_payment_method(request, builder.entity,
-                                           builder.transaction_type)
+                self._build_payment_method(
+                    request, builder.entity, builder.transaction_type
+                )
             elif isinstance(builder.entity, Schedule):
-                self._build_schedule(request, builder.entity,
-                                     builder.transaction_type)
+                self._build_schedule(request, builder.entity, builder.transaction_type)
         elif builder.transaction_type is TransactionType.Search:
-            for key, value in builder.search_criteria.items():
+            for key, value in list(builder.search_criteria.items()):
                 request[key] = value
 
         response = self.do_transaction(
-            self._map_method(builder.transaction_type), self._map_url(builder),
-            jsonpickle.encode(request, False, False, False))
+            self._map_method(builder.transaction_type),
+            self._map_url(builder),
+            jsonpickle.encode(request, False, False, False),
+        )
         return self._map_response(response, builder)
 
     def _map_response(self, raw_response, builder):
-        if raw_response is None or raw_response == '':
+        if raw_response is None or raw_response == "":
             return None
 
         response = jsonpickle.decode(raw_response)
 
-        if isinstance(builder.entity, Customer) or 'customerIdentifier' in builder.search_criteria:
+        if (
+            isinstance(builder.entity, Customer)
+            or "customerIdentifier" in builder.search_criteria
+        ):
             if builder.transaction_type == TransactionType.Search:
                 customers = []
 
-                for value in response['results']:
+                for value in response["results"]:
                     customers.append(self._hydrate_customer(value))
 
                 return customers
@@ -165,11 +204,14 @@ class PayPlanConnector(RestGateway):
         if isinstance(builder.entity, Customer):
             return self._hydrate_customer(response)
 
-        if isinstance(builder.entity, RecurringPaymentMethod) or 'paymentMethodIdentifier' in builder.search_criteria:
+        if (
+            isinstance(builder.entity, RecurringPaymentMethod)
+            or "paymentMethodIdentifier" in builder.search_criteria
+        ):
             if builder.transaction_type == TransactionType.Search:
                 methods = []
 
-                for value in response['results']:
+                for value in response["results"]:
                     methods.append(self._hydrate_payment_method(value))
 
                 return methods
@@ -177,11 +219,14 @@ class PayPlanConnector(RestGateway):
         if isinstance(builder.entity, RecurringPaymentMethod):
             return self._hydrate_payment_method(response)
 
-        if isinstance(builder.entity, Schedule) or 'scheduleIdentifier' in builder.search_criteria:
+        if (
+            isinstance(builder.entity, Schedule)
+            or "scheduleIdentifier" in builder.search_criteria
+        ):
             if builder.transaction_type == TransactionType.Search:
                 schedules = []
 
-                for value in response['results']:
+                for value in response["results"]:
                     schedules.append(self._hydrate_schedule(value))
 
                 return schedules
@@ -193,52 +238,76 @@ class PayPlanConnector(RestGateway):
 
     @staticmethod
     def _map_method(transaction_type):
-        if transaction_type == TransactionType.Create or transaction_type == TransactionType.Search:
-            return 'POST'
+        if (
+            transaction_type == TransactionType.Create
+            or transaction_type == TransactionType.Search
+        ):
+            return "POST"
         elif transaction_type == TransactionType.Edit:
-            return 'PUT'
+            return "PUT"
         elif transaction_type == TransactionType.Delete:
-            return 'DELETE'
+            return "DELETE"
 
-        return 'GET'
+        return "GET"
 
     def _map_url(self, builder):
-        suffix = ''
-        if (builder.transaction_type == TransactionType.Fetch
-                or builder.transaction_type == TransactionType.Delete
-                or builder.transaction_type == TransactionType.Edit):
-            suffix = '/' + str(builder.entity.key)
+        suffix = ""
+        if (
+            builder.transaction_type == TransactionType.Fetch
+            or builder.transaction_type == TransactionType.Delete
+            or builder.transaction_type == TransactionType.Edit
+        ):
+            suffix = "/" + str(builder.entity.key)
 
-        if isinstance(builder.entity, Customer) or 'customerIdentifier' in builder.search_criteria :
-            return '{}{}'.format(
-                'searchCustomers' \
-                    if builder.transaction_type == TransactionType.Search \
-                    else 'customers',
-                suffix
+        if (
+            isinstance(builder.entity, Customer)
+            or "customerIdentifier" in builder.search_criteria
+        ):
+            return "{}{}".format(
+                (
+                    "searchCustomers"
+                    if builder.transaction_type == TransactionType.Search
+                    else "customers"
+                ),
+                suffix,
             )
 
-        if isinstance(builder.entity, RecurringPaymentMethod) or 'paymentMethodIdentifier' in builder.search_criteria:
-            payment_method = ''
+        if (
+            isinstance(builder.entity, RecurringPaymentMethod)
+            or "paymentMethodIdentifier" in builder.search_criteria
+        ):
+            payment_method = ""
 
             if builder.transaction_type == TransactionType.Create:
-                payment_method = 'CreditCard' \
-                    if isinstance(builder.entity.payment_method, Credit) \
-                    else 'ACH'
+                payment_method = (
+                    "CreditCard"
+                    if isinstance(builder.entity.payment_method, Credit)
+                    else "ACH"
+                )
             elif builder.transaction_type == TransactionType.Edit:
-                payment_method = builder.entity.payment_type.replace(' ', '')
+                payment_method = builder.entity.payment_type.replace(" ", "")
 
-            return '{}{}{}'.format(
-                'searchPaymentMethods' \
-                    if builder.transaction_type == TransactionType.Search \
-                    else 'paymentMethods',
+            return "{}{}{}".format(
+                (
+                    "searchPaymentMethods"
+                    if builder.transaction_type == TransactionType.Search
+                    else "paymentMethods"
+                ),
                 payment_method,
-                suffix
+                suffix,
             )
 
-        if isinstance(builder.entity, Schedule) or 'scheduleIdentifier' in builder.search_criteria:
-            return '{}{}'.format(
-                'searchSchedules' if builder.transaction_type == TransactionType.Search else 'schedules',
-                suffix
+        if (
+            isinstance(builder.entity, Schedule)
+            or "scheduleIdentifier" in builder.search_criteria
+        ):
+            return "{}{}".format(
+                (
+                    "searchSchedules"
+                    if builder.transaction_type == TransactionType.Search
+                    else "schedules"
+                ),
+                suffix,
             )
 
         raise UnsupportedTransactionException()
@@ -247,18 +316,18 @@ class PayPlanConnector(RestGateway):
         if customer is None:
             return request
 
-        request['customerIdentifier'] = customer.id
-        request['firstName'] = customer.first_name
-        request['lastName'] = customer.last_name
-        request['company'] = customer.company
-        request['customerStatus'] = customer.status
-        request['primaryEmail'] = customer.email
-        request['phoneDay'] = customer.home_phone
-        request['phoneEvening'] = customer.work_phone
-        request['phoneMobile'] = customer.mobile_phone
-        request['fax'] = customer.fax
-        request['title'] = customer.title
-        request['department'] = customer.department
+        request["customerIdentifier"] = customer.id
+        request["firstName"] = customer.first_name
+        request["lastName"] = customer.last_name
+        request["company"] = customer.company
+        request["customerStatus"] = customer.status
+        request["primaryEmail"] = customer.email
+        request["phoneDay"] = customer.home_phone
+        request["phoneEvening"] = customer.work_phone
+        request["phoneMobile"] = customer.mobile_phone
+        request["fax"] = customer.fax
+        request["title"] = customer.title
+        request["department"] = customer.department
         request = self._build_address(request, customer.address)
 
         return request
@@ -267,10 +336,10 @@ class PayPlanConnector(RestGateway):
         if payment is None:
             return request
 
-        request['preferredPayment'] = payment.preferred_payment
-        request['paymentMethodIdentifier'] = payment.id
-        request['customerKey'] = payment.customer_key
-        request['nameOnAccount'] = payment.name_on_account
+        request["preferredPayment"] = payment.preferred_payment
+        request["paymentMethodIdentifier"] = payment.id
+        request["customerKey"] = payment.customer_key
+        request["nameOnAccount"] = payment.name_on_account
         request = self._build_address(request, payment.address)
 
         if transaction_type == TransactionType.Create:
@@ -280,56 +349,57 @@ class PayPlanConnector(RestGateway):
 
             if isinstance(payment.payment_method, CreditCardData):
                 method = payment.payment_method
-                payment_info_key = 'alternateIdentity' if has_token else 'card'
+                payment_info_key = "alternateIdentity" if has_token else "card"
                 payment_info = {
-                    'token' if has_token else 'number':
-                    token_value if has_token else method.number,
-                    'expMon':
-                    method.exp_month,
-                    'expYear':
-                    method.exp_year,
+                    "token" if has_token else "number": (
+                        token_value if has_token else method.number
+                    ),
+                    "expMon": method.exp_month,
+                    "expYear": method.exp_year,
                 }
 
                 if has_token:
-                    payment_info['type'] = 'SINGLEUSETOKEN'
+                    payment_info["type"] = "SINGLEUSETOKEN"
 
-                request['cardVerificationValue'] = method.cvn
+                request["cardVerificationValue"] = method.cvn
             elif isinstance(payment.payment_method, TrackData):
                 method = payment.payment_method
-                payment_info_key = 'track'
+                payment_info_key = "track"
                 payment_info = {
-                    'data': method.value,
-                    'dataEntryMode': method.entry_method.upper(),
+                    "data": method.value,
+                    "dataEntryMode": method.entry_method.upper(),
                 }
 
             if isinstance(payment.payment_method, ECheck):
                 check = payment.payment_method
-                request['achType'] = self._map_account_type(check.account_type)
-                request['accountType'] = self._map_check_type(check.check_type)
-                request['telephoneIndicator'] = False \
-                    if check.sec_code == SecCode.CCD or check.sec_code == SecCode.PPD \
+                request["achType"] = self._map_account_type(check.account_type)
+                request["accountType"] = self._map_check_type(check.check_type)
+                request["telephoneIndicator"] = (
+                    False
+                    if check.sec_code == SecCode.CCD or check.sec_code == SecCode.PPD
                     else True
-                request['routingNumber'] = check.routing_number
-                request['accountNumber'] = check.account_number
-                request['accountHolderYob'] = check.birth_year
-                request['driversLicenseState'] = check.drivers_license_state
-                request['driversLicenseNumber'] = check.drivers_license_number
-                request['socialSecurityNumberLast4'] = check.ssn_last_4
-                request.pop('country', None)
+                )
+                request["routingNumber"] = check.routing_number
+                request["accountNumber"] = check.account_number
+                request["accountHolderYob"] = check.birth_year
+                request["driversLicenseState"] = check.drivers_license_state
+                request["driversLicenseNumber"] = check.drivers_license_number
+                request["socialSecurityNumberLast4"] = check.ssn_last_4
+                request.pop("country", None)
 
             if isinstance(payment.payment_method, Encryptable):
                 enc = payment.payment_method.encryption_data
 
                 if enc is not None:
-                    payment_info['trackNumber'] = enc.track_number
-                    payment_info['key'] = enc.ktb
-                    payment_info['encryptionType'] = 'E3'
+                    payment_info["trackNumber"] = enc.track_number
+                    payment_info["key"] = enc.ktb
+                    payment_info["encryptionType"] = "E3"
 
         else:  # EDIT FIELDS
-            request.pop('customerKey', None)
-            request['paymentStatus'] = payment.status
-            request['cpcTaxType'] = payment.tax_type
-            request['expirationDate'] = payment.expiration_date
+            request.pop("customerKey", None)
+            request["paymentStatus"] = payment.status
+            request["cpcTaxType"] = payment.tax_type
+            request["expirationDate"] = payment.expiration_date
 
         if payment_info is not None:
             request[payment_info_key] = payment_info
@@ -338,19 +408,19 @@ class PayPlanConnector(RestGateway):
 
     def _map_account_type(self, account_type):
         if account_type == AccountType.Checking:
-            return 'Checking'
+            return "Checking"
 
         if account_type == AccountType.Savings:
-            return 'Savings'
+            return "Savings"
 
         return None
 
     def _map_check_type(self, check_type):
         if check_type == CheckType.Personal:
-            return 'Personal'
+            return "Personal"
 
         if check_type == CheckType.Business:
-            return 'Business'
+            return "Business"
 
         return None
 
@@ -358,75 +428,89 @@ class PayPlanConnector(RestGateway):
         if schedule is None:
             return request
 
-        request['scheduleIdentifier'] = schedule.id
-        request['scheduleName'] = schedule.name
-        request['scheduleStatus'] = schedule.status
-        request['paymentMethodKey'] = schedule.payment_key
-        request = self._build_amount(request, 'subtotalAmount',
-                                     schedule.amount, schedule.currency,
-                                     transaction_type)
-        request = self._build_amount(request, 'taxAmount', schedule.tax_amount,
-                                     schedule.currency, transaction_type)
-        request['deviceId'] = schedule.device_id
-        request['processingDateInfo'] = self._map_processing_date(schedule)
-        request = self._build_date(request, 'endDate', schedule.end_date,
-                                   (transaction_type == TransactionType.Edit))
-        request['reprocessingCount'] = schedule.reprocessing_count or 3
-        request['emailReceipt'] = schedule.email_receipt
-        request[
-            'emailAdvanceNotice'] = 'Yes' if schedule.email_notification else 'No'
+        request["scheduleIdentifier"] = schedule.id
+        request["scheduleName"] = schedule.name
+        request["scheduleStatus"] = schedule.status
+        request["paymentMethodKey"] = schedule.payment_key
+        request = self._build_amount(
+            request,
+            "subtotalAmount",
+            schedule.amount,
+            schedule.currency,
+            transaction_type,
+        )
+        request = self._build_amount(
+            request,
+            "taxAmount",
+            schedule.tax_amount,
+            schedule.currency,
+            transaction_type,
+        )
+        request["deviceId"] = schedule.device_id
+        request["processingDateInfo"] = self._map_processing_date(schedule)
+        request = self._build_date(
+            request,
+            "endDate",
+            schedule.end_date,
+            (transaction_type == TransactionType.Edit),
+        )
+        request["reprocessingCount"] = schedule.reprocessing_count or 3
+        request["emailReceipt"] = schedule.email_receipt
+        request["emailAdvanceNotice"] = "Yes" if schedule.email_notification else "No"
         # debt repay ind
-        request['invoiceNbr'] = schedule.invoice_number
-        request['poNumber'] = schedule.po_number
-        request['description'] = schedule.description
-        request['numberOfPayments'] = schedule.number_of_payments
+        request["invoiceNbr"] = schedule.invoice_number
+        request["poNumber"] = schedule.po_number
+        request["description"] = schedule.description
+        request["numberOfPayments"] = schedule.number_of_payments
 
         if transaction_type == TransactionType.Create:
-            request['customerKey'] = schedule.customer_key
-            request = self._build_date(request, 'startDate',
-                                       schedule.start_date)
-            request['frequency'] = schedule.frequency
-            request['duration'] = self._map_duration(schedule)
+            request["customerKey"] = schedule.customer_key
+            request = self._build_date(request, "startDate", schedule.start_date)
+            request["frequency"] = schedule.frequency
+            request["duration"] = self._map_duration(schedule)
         else:  # Edit Fields
             if not schedule.has_started:
-                request = self._build_date(request, 'startDate',
-                                           schedule.start_date)
-                request['frequency'] = schedule.frequency
-                request['duration'] = self._map_duration(schedule)
+                request = self._build_date(request, "startDate", schedule.start_date)
+                request["frequency"] = schedule.frequency
+                request["duration"] = self._map_duration(schedule)
             else:
-                request = self._build_date(request, 'cancellationDate',
-                                           schedule.cancellation_date)
-                request = self._build_date(request, 'nextProcressingDate',
-                                           schedule.next_processing_date)
+                request = self._build_date(
+                    request, "cancellationDate", schedule.cancellation_date
+                )
+                request = self._build_date(
+                    request, "nextProcressingDate", schedule.next_processing_date
+                )
 
         return request
 
     def _map_duration(self, schedule):
         if schedule.number_of_payments is not None:
-            return 'Limited Number'
+            return "Limited Number"
 
         if schedule.end_date is not None:
-            return 'End Date'
+            return "End Date"
 
-        return 'Ongoing'
+        return "Ongoing"
 
     def _map_processing_date(self, schedule):
-        frequencies = ['Monthly', 'Bi-Monthly', 'Quarterly', 'Semi-Annually']
+        frequencies = ["Monthly", "Bi-Monthly", "Quarterly", "Semi-Annually"]
 
         if schedule.frequency in frequencies:
             if schedule.payment_schedule == PaymentSchedule.FirstDayOfTheMonth:
-                return 'First'
+                return "First"
 
             if schedule.payment_schedule == PaymentSchedule.LastDayOfTheMonth:
-                return 'Last'
+                return "Last"
 
             day = schedule.start_date  # TODO: get date number
-            return 'Last' if day > 28 else day
+            return "Last" if day > 28 else day
 
-        if schedule.frequency == 'Semi-Monthly':
-            return 'Last' \
-                if schedule.payment_schedule == PaymentSchedule.LastDayOfTheMonth \
-                else 'First'
+        if schedule.frequency == "Semi-Monthly":
+            return (
+                "Last"
+                if schedule.payment_schedule == PaymentSchedule.LastDayOfTheMonth
+                else "First"
+            )
 
         return None
 
@@ -445,133 +529,215 @@ class PayPlanConnector(RestGateway):
         if amount is not None:
             if isinstance(amount, float):
                 amount = int(amount * 100)
-                
+
             request[name] = {
                 # TODO: format in cents
-                'value': amount,
+                "value": amount,
             }
 
             if transaction_type == TransactionType.Create:
-                request[name]['currency'] = currency
+                request[name]["currency"] = currency
 
         return request
 
     def _build_address(self, request, address):
         if address is not None:
-            request['addressLine1'] = address.street_address_1
-            request['addressLine2'] = address.street_address_2
-            request['city'] = address.city
-            request['country'] = address.country
-            request['stateProvince'] = address.state
-            request['zipPostalCode'] = address.postal_code
+            request["addressLine1"] = address.street_address_1
+            request["addressLine2"] = address.street_address_2
+            request["city"] = address.city
+            request["country"] = address.country
+            request["stateProvince"] = address.state
+            request["zipPostalCode"] = address.postal_code
 
         return request
 
     def _hydrate_customer(self, response):
         customer = Customer()
 
-        customer.key = response['customerKey'] if 'customerKey' in response else None
-        customer.id = response['customerIdentifier'] if 'customerIdentifier' in response else None
-        customer.first_name = response['firstName'] if 'firstName' in response else None
-        customer.last_name = response['lastName'] if 'lastName' in response else None
-        customer.company = response['company'] if 'company' in response else None
-        customer.status = response['customerStatus'] if 'customerStatus' in response else None
-        customer.title = response['title'] if 'title' in response else None
-        customer.department = response['department'] if 'department' in response else None
-        customer.email = response['primaryEmail'] if 'primaryEmail' in response else None
-        customer.home_phone = response['phoneEvening'] if 'phoneEvening' in response else None
-        customer.work_phone = response['phoneDay'] if 'phoneDay' in response else None
-        customer.mobile_phone = response['phoneMobile'] if 'phoneMobile' in response else None
-        customer.fax = response['fax'] if 'fax' in response else None
+        customer.key = response["customerKey"] if "customerKey" in response else None
+        customer.id = (
+            response["customerIdentifier"] if "customerIdentifier" in response else None
+        )
+        customer.first_name = response["firstName"] if "firstName" in response else None
+        customer.last_name = response["lastName"] if "lastName" in response else None
+        customer.company = response["company"] if "company" in response else None
+        customer.status = (
+            response["customerStatus"] if "customerStatus" in response else None
+        )
+        customer.title = response["title"] if "title" in response else None
+        customer.department = (
+            response["department"] if "department" in response else None
+        )
+        customer.email = (
+            response["primaryEmail"] if "primaryEmail" in response else None
+        )
+        customer.home_phone = (
+            response["phoneEvening"] if "phoneEvening" in response else None
+        )
+        customer.work_phone = response["phoneDay"] if "phoneDay" in response else None
+        customer.mobile_phone = (
+            response["phoneMobile"] if "phoneMobile" in response else None
+        )
+        customer.fax = response["fax"] if "fax" in response else None
         customer.address = Address()
-        customer.address.street_address_1 = response['addressLine1'] if 'addressLine1' in response else None
-        customer.address.street_address_2 = response['addressLine2'] if 'addressLine2' in response else None
-        customer.address.city = response['city'] if 'city' in response else None
-        customer.address.province = response['stateProvince'] if 'stateProvince' in response else None
-        customer.address.postal_code = response['zipPostalCode'] if 'zipPostalCode' in response else None
-        customer.address.country = response['country'] if 'country' in response else None
+        customer.address.street_address_1 = (
+            response["addressLine1"] if "addressLine1" in response else None
+        )
+        customer.address.street_address_2 = (
+            response["addressLine2"] if "addressLine2" in response else None
+        )
+        customer.address.city = response["city"] if "city" in response else None
+        customer.address.province = (
+            response["stateProvince"] if "stateProvince" in response else None
+        )
+        customer.address.postal_code = (
+            response["zipPostalCode"] if "zipPostalCode" in response else None
+        )
+        customer.address.country = (
+            response["country"] if "country" in response else None
+        )
 
         return customer
 
     def _hydrate_payment_method(self, response):
         method = RecurringPaymentMethod()
 
-        method.key = response['paymentMethodKey'] if 'paymentMethodKey' in response else None
-        method.id = response['paymentMethodIdentifier'] if 'paymentMethodIdentifier' in response else None
-        method.payment_type = response['paymentMethodType'] if 'paymentMethodType' in response else None
-        method.preferred_payment = response['preferredPayment'] == 'true' if 'preferredPayment' in response else None
-        method.status = response['paymentStatus'] if 'paymentStatus' in response else None
-        method.customer_key = response['customerKey'] if 'customerKey' in response else None
-        method.name_on_account = response['nameOnAccount'] if 'nameOnAccount' in response else None
-        method.commercial_indicator = response['commercialIndicator'] if 'commercialIndicator' in response else None
-        method.tax_type = response['taxType'] if 'taxType' in response else None
-        method.expiration_date = response['expirationDate'] if 'expirationDate' in response else None
+        method.key = (
+            response["paymentMethodKey"] if "paymentMethodKey" in response else None
+        )
+        method.id = (
+            response["paymentMethodIdentifier"]
+            if "paymentMethodIdentifier" in response
+            else None
+        )
+        method.payment_type = (
+            response["paymentMethodType"] if "paymentMethodType" in response else None
+        )
+        method.preferred_payment = (
+            response["preferredPayment"] == "true"
+            if "preferredPayment" in response
+            else None
+        )
+        method.status = (
+            response["paymentStatus"] if "paymentStatus" in response else None
+        )
+        method.customer_key = (
+            response["customerKey"] if "customerKey" in response else None
+        )
+        method.name_on_account = (
+            response["nameOnAccount"] if "nameOnAccount" in response else None
+        )
+        method.commercial_indicator = (
+            response["commercialIndicator"]
+            if "commercialIndicator" in response
+            else None
+        )
+        method.tax_type = response["taxType"] if "taxType" in response else None
+        method.expiration_date = (
+            response["expirationDate"] if "expirationDate" in response else None
+        )
         method.address = Address()
-        method.address.street_address_1 = response['addressLine1'] if 'addressLine1' in response else None
-        method.address.street_address_2 = response['addressLine2'] if 'addressLine2' in response else None
-        method.address.city = response['city'] if 'city' in response else None
-        method.address.province = response['stateProvince'] if 'stateProvince' in response else None
-        method.address.postal_code = response['zipPostalCode'] if 'zipPostalCode' in response else None
-        method.address.country = response['country'] if 'country' in response else None
+        method.address.street_address_1 = (
+            response["addressLine1"] if "addressLine1" in response else None
+        )
+        method.address.street_address_2 = (
+            response["addressLine2"] if "addressLine2" in response else None
+        )
+        method.address.city = response["city"] if "city" in response else None
+        method.address.province = (
+            response["stateProvince"] if "stateProvince" in response else None
+        )
+        method.address.postal_code = (
+            response["zipPostalCode"] if "zipPostalCode" in response else None
+        )
+        method.address.country = response["country"] if "country" in response else None
 
         return method
 
     def _hydrate_schedule(self, response):
         schedule = Schedule()
 
-        schedule.key = response['scheduleKey'] if 'scheduleKey' in response else None
-        schedule.id = response['scheduleIdentifier'] if 'scheduleIdentifier' in response else None
-        schedule.customer_key = response['customerKey'] if 'customerKey' in response else None
-        schedule.name = response['scheduleName'] if 'scheduleName' in response else None
-        schedule.status = response['scheduleStatus'] if 'scheduleStatus' in response else None
-        schedule.payment_key = response['paymentMethodKey'] if 'paymentMethodKey' in response else None
+        schedule.key = response["scheduleKey"] if "scheduleKey" in response else None
+        schedule.id = (
+            response["scheduleIdentifier"] if "scheduleIdentifier" in response else None
+        )
+        schedule.customer_key = (
+            response["customerKey"] if "customerKey" in response else None
+        )
+        schedule.name = response["scheduleName"] if "scheduleName" in response else None
+        schedule.status = (
+            response["scheduleStatus"] if "scheduleStatus" in response else None
+        )
+        schedule.payment_key = (
+            response["paymentMethodKey"] if "paymentMethodKey" in response else None
+        )
 
-        if 'subtotalAmount' in response:
-            subtotal = response['subtotalAmount']
-            schedule.amount = int(subtotal['value']) / 100
-            schedule.currency = subtotal['currency']
+        if "subtotalAmount" in response:
+            subtotal = response["subtotalAmount"]
+            schedule.amount = int(subtotal["value"]) / 100
+            schedule.currency = subtotal["currency"]
 
-        if 'taxAmount' in response:
-            tax = response['taxAmount']
-            schedule.tax_amount = tax['value']
+        if "taxAmount" in response:
+            tax = response["taxAmount"]
+            schedule.tax_amount = tax["value"]
 
-        schedule.device_id = response['deviceId'] if 'deviceId' in response else None
-        schedule.start_date = response['startDate'] if 'startDate' in response else None
+        schedule.device_id = response["deviceId"] if "deviceId" in response else None
+        schedule.start_date = response["startDate"] if "startDate" in response else None
 
-        if 'processingDateInfo' in response:
+        if "processingDateInfo" in response:
             schedule.payment_schedule = PaymentSchedule.Dynamic
-            if response['processingDateInfo'] == 'Last':
+            if response["processingDateInfo"] == "Last":
                 schedule.payment_schedule = PaymentSchedule.LastDayOfTheMonth
-            elif response['processingDateInfo'] == 'First':
+            elif response["processingDateInfo"] == "First":
                 schedule.payment_schedule = PaymentSchedule.FirstDayOfTheMonth
             else:
                 schedule.payment_schedule = PaymentSchedule.Dynamic
         else:
             schedule.payment_schedule = PaymentSchedule.Dynamic
 
-        schedule.frequency = response['frequency'] if 'frequency' in response else None
-        schedule.end_date = response['endDate'] if 'endDate' in response else None
-        schedule.reprocessing_count = response['reprocessingCount'] if 'reprocessingCount' in response else None
-        schedule.email_receipt = response['emailReceipt'] if 'emailReceipt' in response else None
-        schedule.email_notification = response['emailNotification'] == 'Yes' if 'emailNotification' in response else None
-        schedule.invoice_number = response['invoiceNbr'] if 'invoiceNbr' in response else None
-        schedule.po_number = response['poNumber'] if 'poNumber' in response else None
-        schedule.description = response['description'] if 'description' in response else None
+        schedule.frequency = response["frequency"] if "frequency" in response else None
+        schedule.end_date = response["endDate"] if "endDate" in response else None
+        schedule.reprocessing_count = (
+            response["reprocessingCount"] if "reprocessingCount" in response else None
+        )
+        schedule.email_receipt = (
+            response["emailReceipt"] if "emailReceipt" in response else None
+        )
+        schedule.email_notification = (
+            response["emailNotification"] == "Yes"
+            if "emailNotification" in response
+            else None
+        )
+        schedule.invoice_number = (
+            response["invoiceNbr"] if "invoiceNbr" in response else None
+        )
+        schedule.po_number = response["poNumber"] if "poNumber" in response else None
+        schedule.description = (
+            response["description"] if "description" in response else None
+        )
         # statusSetDate
-        schedule.next_processing_date = response['nextProcessingDate'] if 'nextProcessingDate' in response else None
+        schedule.next_processing_date = (
+            response["nextProcessingDate"] if "nextProcessingDate" in response else None
+        )
         # previousProcessingDate
         # approvedTransactionCount
         # failureCount
         # totalApprovedAmountToDate
         # numberOfPaymentsRemaining
-        schedule.cancellation_date = response['cancellationDate'] if 'cancellationDate' in response else None
+        schedule.cancellation_date = (
+            response["cancellationDate"] if "cancellationDate" in response else None
+        )
         # creationDate
-        schedule.has_started = response['scheduleStarted'] == 'true' if 'scheduleStarted' in response else None
+        schedule.has_started = (
+            response["scheduleStarted"] == "true"
+            if "scheduleStarted" in response
+            else None
+        )
 
         return schedule
 
     def _has_token(self, payment_method):
-        if self._has_attr(payment_method, 'token') and payment_method.token is not None:
+        if self._has_attr(payment_method, "token") and payment_method.token is not None:
             return True, payment_method.token
         return False, None
 
@@ -605,148 +771,158 @@ class PorticoConnector(XmlGateway):
 
     def process_authorization(self, builder):
         transaction = et.Element(self._map_transaction_type(builder))
-        block1 = et.SubElement(transaction, 'Block1')
+        block1 = et.SubElement(transaction, "Block1")
 
         # build request
-        if (builder.transaction_type == TransactionType.Sale
-        or builder.transaction_type == TransactionType.Auth
-        or builder.transaction_type == TransactionType.Refund):
+        if (
+            builder.transaction_type == TransactionType.Sale
+            or builder.transaction_type == TransactionType.Auth
+            or builder.transaction_type == TransactionType.Refund
+        ):
             if (
                 builder.payment_method.payment_method_type != PaymentMethodType.Gift
                 and builder.payment_method.payment_method_type != PaymentMethodType.ACH
             ):
                 if (
                     isinstance(builder.payment_method, RecurringPaymentMethod)
-                    and builder.payment_method.payment_type == 'ACH'
+                    and builder.payment_method.payment_type == "ACH"
                 ):
                     pass
                 else:
-                    et.SubElement(
-                        block1,
-                        'AllowDup'
-                    ).text = 'Y' if builder.allow_duplicates else 'N'
-                    if (builder.transaction_type != TransactionType.Refund
+                    et.SubElement(block1, "AllowDup").text = (
+                        "Y" if builder.allow_duplicates else "N"
+                    )
+                    if (
+                        builder.transaction_type != TransactionType.Refund
                         and (
-                            builder.transaction_modifier == TransactionModifier.NoModifier
+                            builder.transaction_modifier
+                            == TransactionModifier.NoModifier
                             or not builder.transaction_modifier
                         )
-                        and builder.payment_method.payment_method_type !=
-                        PaymentMethodType.EBT
-                        and builder.payment_method.payment_method_type !=
-                        PaymentMethodType.Recurring):
-                        et.SubElement(block1, 'AllowPartialAuth').text = \
-                            'Y' if builder.allow_partial_auth else 'N'
+                        and builder.payment_method.payment_method_type
+                        != PaymentMethodType.EBT
+                        and builder.payment_method.payment_method_type
+                        != PaymentMethodType.Recurring
+                    ):
+                        et.SubElement(block1, "AllowPartialAuth").text = (
+                            "Y" if builder.allow_partial_auth else "N"
+                        )
 
         if builder.amount is not None:
-            et.SubElement(block1, 'Amt').text = str(builder.amount)
+            et.SubElement(block1, "Amt").text = str(builder.amount)
 
         if builder.gratuity:
-            et.SubElement(block1, 'GratuityAmtInfo').text = str(
-                builder.gratuity)
+            et.SubElement(block1, "GratuityAmtInfo").text = str(builder.gratuity)
 
         if builder.convenience_amt:
-            et.SubElement(block1, 'ConvenienceAmtInfo').text = str(
-                builder.convenience_amt)
+            et.SubElement(block1, "ConvenienceAmtInfo").text = str(
+                builder.convenience_amt
+            )
 
         if builder.shipping_amt:
-            et.SubElement(block1, 'ShippingAmtInfo').text = str(
-                builder.shipping_amt)
+            et.SubElement(block1, "ShippingAmtInfo").text = str(builder.shipping_amt)
 
         # because plano
         if builder.cash_back_amount is not None:
             et.SubElement(
                 block1,
-                'CashbackAmtInfo' \
-                    if builder.payment_method.payment_method_type == PaymentMethodType.Debit \
-                    else 'CashBackAmount'
+                (
+                    "CashbackAmtInfo"
+                    if builder.payment_method.payment_method_type
+                    == PaymentMethodType.Debit
+                    else "CashBackAmount"
+                ),
             ).text = str(builder.cash_back_amount)
 
         # offline auth code
         if builder.offline_auth_code:
-            et.SubElement(block1,
-                          'OfflineAuthCode').text = builder.offline_auth_code
+            et.SubElement(block1, "OfflineAuthCode").text = builder.offline_auth_code
 
         # alias action
         if builder.transaction_type == TransactionType.Alias:
-            et.SubElement(block1, 'Action').text = builder.alias_action.value
-            et.SubElement(block1, 'Alias').text = builder.alias
+            et.SubElement(block1, "Action").text = builder.alias_action.value
+            et.SubElement(block1, "Alias").text = builder.alias
 
         # card holder
         is_check = builder.payment_method.payment_method_type == PaymentMethodType.ACH
         if is_check or builder.billing_address is not None:
-            holder = et.SubElement(block1, 'ConsumerInfo'
-                                   if is_check else 'CardHolderData')
+            holder = et.SubElement(
+                block1, "ConsumerInfo" if is_check else "CardHolderData"
+            )
 
             if builder.billing_address is not None:
-                et.SubElement(holder, 'Address1'
-                              if is_check else 'CardHolderAddr'
-                              ).text = builder.billing_address.street_address_1
                 et.SubElement(
-                    holder, 'City' if is_check else
-                    'CardHolderCity').text = builder.billing_address.city
+                    holder, "Address1" if is_check else "CardHolderAddr"
+                ).text = builder.billing_address.street_address_1
+                et.SubElement(holder, "City" if is_check else "CardHolderCity").text = (
+                    builder.billing_address.city
+                )
                 et.SubElement(
-                    holder, 'State' if is_check else 'CardHolderState'
-                ).text = builder.billing_address.province or builder.billing_address.state
-                et.SubElement(
-                    holder, 'Zip' if is_check else
-                    'CardHolderZip').text = builder.billing_address.postal_code
+                    holder, "State" if is_check else "CardHolderState"
+                ).text = (
+                    builder.billing_address.province or builder.billing_address.state
+                )
+                et.SubElement(holder, "Zip" if is_check else "CardHolderZip").text = (
+                    builder.billing_address.postal_code
+                )
 
             if is_check:
                 check = builder.payment_method
 
                 if check.check_holder_name is not None:
-                    names = check.check_holder_name.split(' ', 2)
-                    et.SubElement(holder, 'FirstName').text = names[0]
-                    et.SubElement(holder, 'LastName').text = names[1]
+                    names = check.check_holder_name.split(" ", 2)
+                    et.SubElement(holder, "FirstName").text = names[0]
+                    et.SubElement(holder, "LastName").text = names[1]
 
-                et.SubElement(holder, 'CheckName').text = check.check_name
-                et.SubElement(holder, 'PhoneNumber').text = check.phone_number
-                et.SubElement(holder,
-                              'DLNumber').text = check.drivers_license_number
-                et.SubElement(holder,
-                              'DLState').text = check.drivers_license_state
+                et.SubElement(holder, "CheckName").text = check.check_name
+                et.SubElement(holder, "PhoneNumber").text = check.phone_number
+                et.SubElement(holder, "DLNumber").text = check.drivers_license_number
+                et.SubElement(holder, "DLState").text = check.drivers_license_state
 
                 if check.ssn_last_4 is not None or check.birth_year is not None:
-                    identity = et.SubElement(holder, 'IdentityInfo')
-                    et.SubElement(identity, 'SSNL4').text = check.ssn_last_4
-                    et.SubElement(identity, 'DOBYear').text = check.birth_year
+                    identity = et.SubElement(holder, "IdentityInfo")
+                    et.SubElement(identity, "SSNL4").text = check.ssn_last_4
+                    et.SubElement(identity, "DOBYear").text = check.birth_year
 
         # card data
         has_token, token_value = self._has_token(builder.payment_method)
 
         # because debit
         card_data = None
-        if (builder.payment_method.payment_method_type ==
-                PaymentMethodType.Debit
-                or builder.payment_method.payment_method_type ==
-                PaymentMethodType.ACH):
+        if (
+            builder.payment_method.payment_method_type == PaymentMethodType.Debit
+            or builder.payment_method.payment_method_type == PaymentMethodType.ACH
+        ):
             card_data = block1
         else:
-            card_data = et.Element('CardData')
+            card_data = et.Element("CardData")
 
-        if self._has_attr(
-                builder.payment_method,
-                'is_card_data') and builder.payment_method.is_card_data:
+        if (
+            self._has_attr(builder.payment_method, "is_card_data")
+            and builder.payment_method.is_card_data
+        ):
             card = builder.payment_method
 
-            manual_entry = et.SubElement(card_data, 'TokenData'
-                                         if has_token else 'ManualEntry')
-            et.SubElement(manual_entry, 'TokenValue' if has_token else
-                          'CardNbr').text = token_value or card.number
+            manual_entry = et.SubElement(
+                card_data, "TokenData" if has_token else "ManualEntry"
+            )
+            et.SubElement(
+                manual_entry, "TokenValue" if has_token else "CardNbr"
+            ).text = (token_value or card.number)
 
             if card.exp_month is not None:
-                et.SubElement(manual_entry, 'ExpMonth').text = str(card.exp_month)
+                et.SubElement(manual_entry, "ExpMonth").text = str(card.exp_month)
             if card.exp_year is not None:
-                et.SubElement(manual_entry, 'ExpYear').text = str(card.exp_year)
+                et.SubElement(manual_entry, "ExpYear").text = str(card.exp_year)
             if card.cvn is not None:
-                et.SubElement(manual_entry, 'CVV2').text = str(card.cvn)
+                et.SubElement(manual_entry, "CVV2").text = str(card.cvn)
 
-            et.SubElement(
-                manual_entry,
-                'ReaderPresent').text = 'Y' if card.reader_present else 'N'
-            et.SubElement(
-                manual_entry,
-                'CardPresent').text = 'Y' if card.card_present else 'N'
+            et.SubElement(manual_entry, "ReaderPresent").text = (
+                "Y" if card.reader_present else "N"
+            )
+            et.SubElement(manual_entry, "CardPresent").text = (
+                "Y" if card.card_present else "N"
+            )
 
             block1.append(card_data)
 
@@ -754,39 +930,48 @@ class PorticoConnector(XmlGateway):
                 secure_ecom = card.three_d_secure
 
                 if secure_ecom is not None:
-                    secure_ecommerce = et.SubElement(block1, 'SecureECommerce')
-                    et.SubElement(secure_ecommerce, 'PaymentDataSource'
-                                  ).text = secure_ecom.payment_data_source
-                    et.SubElement(secure_ecommerce, 'TypeOfPaymentData'
-                                  ).text = secure_ecom.payment_data_type
-                    et.SubElement(secure_ecommerce,
-                                  'PaymentData').text = secure_ecom.cavv
-                    et.SubElement(secure_ecommerce,
-                                  'ECommerceIndicator').text = secure_ecom.eci
-                    et.SubElement(secure_ecommerce,
-                                  'XID').text = secure_ecom.xid
+                    secure_ecommerce = et.SubElement(block1, "SecureECommerce")
+                    et.SubElement(secure_ecommerce, "PaymentDataSource").text = (
+                        secure_ecom.payment_data_source
+                    )
+                    et.SubElement(secure_ecommerce, "TypeOfPaymentData").text = (
+                        secure_ecom.payment_data_type
+                    )
+                    et.SubElement(secure_ecommerce, "PaymentData").text = (
+                        secure_ecom.cavv
+                    )
+                    et.SubElement(secure_ecommerce, "ECommerceIndicator").text = (
+                        secure_ecom.eci
+                    )
+                    et.SubElement(secure_ecommerce, "XID").text = secure_ecom.xid
 
             if builder.transaction_modifier == TransactionModifier.Recurring:
-                recurring = et.SubElement(block1, 'RecurringData')
-                et.SubElement(recurring,
-                              'ScheduleID').text = builder.schedule_id
-                et.SubElement(
-                    recurring,
-                    'OneTime').text = 'Y' if builder.one_time_payment else 'N'
+                recurring = et.SubElement(block1, "RecurringData")
+                et.SubElement(recurring, "ScheduleID").text = builder.schedule_id
+                et.SubElement(recurring, "OneTime").text = (
+                    "Y" if builder.one_time_payment else "N"
+                )
 
-        elif self._has_attr(
-                builder.payment_method,
-                'is_track_data') and builder.payment_method.is_track_data:
+        elif (
+            self._has_attr(builder.payment_method, "is_track_data")
+            and builder.payment_method.is_track_data
+        ):
             track = builder.payment_method
 
-            track_data = et.SubElement(card_data, 'TokenData'
-                                       if has_token else 'TrackData')
+            track_data = et.SubElement(
+                card_data, "TokenData" if has_token else "TrackData"
+            )
             if not has_token:
                 track_data.text = str(track.value)
-                track_data.set('method', 'proximity'
-                               if self._has_attr(track, 'entry_method')
-                               and track.entry_method == EntryMethod.Proximity
-                               else 'swipe')
+                track_data.set(
+                    "method",
+                    (
+                        "proximity"
+                        if self._has_attr(track, "entry_method")
+                        and track.entry_method == EntryMethod.Proximity
+                        else "swipe"
+                    ),
+                )
 
                 # if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
                 #     if builder.tag_data is not None:
@@ -814,30 +999,31 @@ class PorticoConnector(XmlGateway):
                 if track.payment_method_type != PaymentMethodType.Debit:
                     block1.append(card_data)
             else:
-                et.SubElement(track_data, 'TokenValue').text = token_value
+                et.SubElement(track_data, "TokenValue").text = token_value
 
         elif isinstance(builder.payment_method, GiftCard):
             card = builder.payment_method
 
             # currency
             if builder.currency:
-                et.SubElement(block1,
-                              'Currency').text = builder.currency.upper()
+                et.SubElement(block1, "Currency").text = builder.currency.upper()
 
             # if it's replace, add the new card, and change the card data name to be old card data
             if builder.transaction_type == TransactionType.Replace:
-                new_card_data = et.SubElement(block1, 'NewCardData')
-                et.SubElement(new_card_data, builder.replacement_card.value_type).text = \
-                    builder.replacement_card.value
+                new_card_data = et.SubElement(block1, "NewCardData")
+                et.SubElement(
+                    new_card_data, builder.replacement_card.value_type
+                ).text = builder.replacement_card.value
                 if builder.replacement_card.pin:
-                    et.SubElement(new_card_data,
-                                  'PIN').text = builder.replacement_card.pin
+                    et.SubElement(new_card_data, "PIN").text = (
+                        builder.replacement_card.pin
+                    )
 
-                card_data = et.Element('OldCardData')
+                card_data = et.Element("OldCardData")
 
             et.SubElement(card_data, card.value_type).text = card.value
             if card.pin:
-                et.SubElement(card_data, 'PIN').text = card.pin
+                et.SubElement(card_data, "PIN").text = card.pin
 
             if builder.alias_action != AliasAction.Create:
                 block1.append(card_data)
@@ -846,170 +1032,179 @@ class PorticoConnector(XmlGateway):
             check = builder.payment_method
 
             # check action
-            et.SubElement(block1, 'CheckAction').text = 'SALE'
+            et.SubElement(block1, "CheckAction").text = "SALE"
 
             if not has_token:
-                account_info = et.SubElement(block1, 'AccountInfo')
+                account_info = et.SubElement(block1, "AccountInfo")
                 if check.routing_number:
-                    et.SubElement(account_info,
-                                  'RoutingNumber').text = check.routing_number
+                    et.SubElement(account_info, "RoutingNumber").text = (
+                        check.routing_number
+                    )
                 if check.account_number:
-                    et.SubElement(account_info,
-                                  'AccountNumber').text = check.account_number
+                    et.SubElement(account_info, "AccountNumber").text = (
+                        check.account_number
+                    )
                 if check.check_number:
-                    et.SubElement(account_info,
-                                  'CheckNumber').text = check.check_number
+                    et.SubElement(account_info, "CheckNumber").text = check.check_number
                 if check.micr_number:
-                    et.SubElement(account_info,
-                                  'MICRData').text = check.micr_number
+                    et.SubElement(account_info, "MICRData").text = check.micr_number
                 if check.account_type:
-                    et.SubElement(
-                        account_info,
-                        'AccountType').text = check.account_type.value
+                    et.SubElement(account_info, "AccountType").text = (
+                        check.account_type.value
+                    )
             else:
-                et.SubElement(block1, 'TokenValue').text = token_value
-                account_info = et.SubElement(block1, 'AccountInfo')
+                et.SubElement(block1, "TokenValue").text = token_value
+                account_info = et.SubElement(block1, "AccountInfo")
                 if check.check_number:
-                    et.SubElement(account_info,
-                                  'CheckNumber').text = check.check_number
+                    et.SubElement(account_info, "CheckNumber").text = check.check_number
                 if check.micr_number:
-                    et.SubElement(account_info,
-                                  'MICRData').text = check.micr_number
+                    et.SubElement(account_info, "MICRData").text = check.micr_number
                 if check.account_type:
-                    et.SubElement(
-                        account_info,
-                        'AccountType').text = check.account_type.value
+                    et.SubElement(account_info, "AccountType").text = (
+                        check.account_type.value
+                    )
 
             if check.entry_mode:
-                et.SubElement(
-                    block1,
-                    'DataEntryMode').text = check.entry_mode.value.upper()
+                et.SubElement(block1, "DataEntryMode").text = (
+                    check.entry_mode.value.upper()
+                )
             if check.check_type:
-                et.SubElement(block1,
-                              'CheckType').text = check.check_type.value
+                et.SubElement(block1, "CheckType").text = check.check_type.value
             if check.sec_code:
-                et.SubElement(block1, 'SECCode').text = check.sec_code.value
+                et.SubElement(block1, "SECCode").text = check.sec_code.value
 
             # verify info
-            verify = et.SubElement(block1, 'VerifyInfo')
-            et.SubElement(
-                verify,
-                'CheckVerify').text = 'Y' if check.check_verify else 'N'
-            et.SubElement(verify,
-                          'ACHVerify').text = 'Y' if check.ach_verify else 'N'
+            verify = et.SubElement(block1, "VerifyInfo")
+            et.SubElement(verify, "CheckVerify").text = (
+                "Y" if check.check_verify else "N"
+            )
+            et.SubElement(verify, "ACHVerify").text = "Y" if check.ach_verify else "N"
 
         if isinstance(builder.payment_method, TransactionReference):
             reference = builder.payment_method
-            et.SubElement(block1,
-                          'GatewayTxnId').text = reference.transaction_id
+            et.SubElement(block1, "GatewayTxnId").text = reference.transaction_id
             if reference.client_transaction_id:
-                et.SubElement(
-                    block1,
-                    'ClientTxnId').text = reference.client_transaction_id
+                et.SubElement(block1, "ClientTxnId").text = (
+                    reference.client_transaction_id
+                )
 
         if isinstance(builder.payment_method, RecurringPaymentMethod):
             method = builder.payment_method
 
             # check action
-            if method.payment_type == 'ACH':
-                et.SubElement(block1, 'CheckAction').text = 'SALE'
+            if method.payment_type == "ACH":
+                et.SubElement(block1, "CheckAction").text = "SALE"
                 if builder.payment_method.sec_code is not None:
-                    et.SubElement(block1, 'SECCode').text = builder.payment_method.sec_code.value
+                    et.SubElement(block1, "SECCode").text = (
+                        builder.payment_method.sec_code.value
+                    )
 
             # payment method stuff
-            et.SubElement(block1, 'PaymentMethodKey').text = method.key
-            if (method.payment_method is not None
-                    and isinstance(method.payment_method, CreditCardData)):
+            et.SubElement(block1, "PaymentMethodKey").text = method.key
+            if method.payment_method is not None and isinstance(
+                method.payment_method, CreditCardData
+            ):
                 card = method.payment_method
-                data = et.SubElement(block1, 'PaymentMethodKeyData')
-                et.SubElement(data, 'ExpMonth').text = str(card.exp_month)
-                et.SubElement(data, 'ExpYear').text = str(card.exp_year)
-                et.SubElement(data, 'CVV2').text = str(card.cvn)
+                data = et.SubElement(block1, "PaymentMethodKeyData")
+                et.SubElement(data, "ExpMonth").text = str(card.exp_month)
+                et.SubElement(data, "ExpYear").text = str(card.exp_year)
+                et.SubElement(data, "CVV2").text = str(card.cvn)
 
             # recurring data
-            recurring = et.SubElement(block1, 'RecurringData')
-            et.SubElement(recurring, 'ScheduleID').text = builder.schedule_id
-            et.SubElement(
-                recurring,
-                'OneTime').text = 'Y' if builder.one_time_payment else 'N'
+            recurring = et.SubElement(block1, "RecurringData")
+            et.SubElement(recurring, "ScheduleID").text = builder.schedule_id
+            et.SubElement(recurring, "OneTime").text = (
+                "Y" if builder.one_time_payment else "N"
+            )
 
         # pin block
-        if self._has_attr(builder.payment_method, 'pin_block'):
+        if self._has_attr(builder.payment_method, "pin_block"):
             if builder.transaction_type != TransactionType.Reversal:
-                et.SubElement(
-                    block1, 'PinBlock').text = builder.payment_method.pin_block
+                et.SubElement(block1, "PinBlock").text = (
+                    builder.payment_method.pin_block
+                )
 
         # encryption
-        if self._has_attr(builder.payment_method, 'encryption_data'):
+        if self._has_attr(builder.payment_method, "encryption_data"):
             encryption_data = builder.payment_method.encryption_data
 
             if encryption_data is not None:
-                enc = et.SubElement(card_data, 'EncryptionData')
+                enc = et.SubElement(card_data, "EncryptionData")
                 if encryption_data.version:
-                    et.SubElement(enc,
-                                  'Version').text = encryption_data.version
+                    et.SubElement(enc, "Version").text = encryption_data.version
                 if encryption_data.track_number:
-                    et.SubElement(enc, 'EncryptedTrackNumber'
-                                  ).text = encryption_data.track_number
+                    et.SubElement(enc, "EncryptedTrackNumber").text = (
+                        encryption_data.track_number
+                    )
                 if encryption_data.ktb:
-                    et.SubElement(enc, 'KTB').text = encryption_data.ktb
+                    et.SubElement(enc, "KTB").text = encryption_data.ktb
                 if encryption_data.ktb:
-                    et.SubElement(enc, 'KSN').text = encryption_data.ksn
+                    et.SubElement(enc, "KSN").text = encryption_data.ksn
 
         # set token flag
-        if self._has_attr(
-                builder.payment_method,
-                'tokenizable') and builder.payment_method.tokenizable:
-            et.SubElement(card_data, 'TokenRequest').text = \
-                'Y' if builder.request_multi_use_token else 'N'
+        if (
+            self._has_attr(builder.payment_method, "tokenizable")
+            and builder.payment_method.tokenizable
+        ):
+            et.SubElement(card_data, "TokenRequest").text = (
+                "Y" if builder.request_multi_use_token else "N"
+            )
 
         # balance inquiry type
-        if self._has_attr(builder, 'balance_inquiry_type'):
-            et.SubElement(
-                block1,
-                'BalanceInquiryType').text = builder.balance_inquiry_type.value
+        if self._has_attr(builder, "balance_inquiry_type"):
+            et.SubElement(block1, "BalanceInquiryType").text = (
+                builder.balance_inquiry_type.value
+            )
 
         # cpc request
         if builder.level_2_request is not None:
-            et.SubElement(block1, 'CPCReq').text = 'Y'
+            et.SubElement(block1, "CPCReq").text = "Y"
 
         # details
-        if (builder.customer_id is not None or builder.description is not None
-                or builder.invoice_number is not None):
-            addons = et.SubElement(block1, 'AdditionalTxnFields')
-            et.SubElement(addons, 'CustomerID').text = builder.customer_id
-            et.SubElement(addons, 'Description').text = builder.description
-            et.SubElement(addons, 'InvoiceNbr').text = builder.invoice_number
+        if (
+            builder.customer_id is not None
+            or builder.description is not None
+            or builder.invoice_number is not None
+        ):
+            addons = et.SubElement(block1, "AdditionalTxnFields")
+            et.SubElement(addons, "CustomerID").text = builder.customer_id
+            et.SubElement(addons, "Description").text = builder.description
+            et.SubElement(addons, "InvoiceNbr").text = builder.invoice_number
 
         # ecommerce info
         if builder.ecommerce_info is not None:
-            et.SubElement(
-                block1,
-                'Ecommerce').text = builder.ecommerce_info.channel.value
+            et.SubElement(block1, "Ecommerce").text = (
+                builder.ecommerce_info.channel.value
+            )
 
-            if (builder.invoice_number is not None
-                    or builder.ecommerce_info.ship_month is not None):
-                direct = et.SubElement(block1, 'DirectMktData')
-                et.SubElement(
-                    direct,
-                    'DirectMktInvoiceNbr').text = builder.invoice_number
-                et.SubElement(direct, 'DirectMktShipDay').text = str(
-                    builder.ecommerce_info.ship_day)
-                et.SubElement(direct, 'DirectMktShipMonth').text = str(
-                    builder.ecommerce_info.ship_month)
+            if (
+                builder.invoice_number is not None
+                or builder.ecommerce_info.ship_month is not None
+            ):
+                direct = et.SubElement(block1, "DirectMktData")
+                et.SubElement(direct, "DirectMktInvoiceNbr").text = (
+                    builder.invoice_number
+                )
+                et.SubElement(direct, "DirectMktShipDay").text = str(
+                    builder.ecommerce_info.ship_day
+                )
+                et.SubElement(direct, "DirectMktShipMonth").text = str(
+                    builder.ecommerce_info.ship_month
+                )
 
         # dynamic descriptor
         if builder.dynamic_descriptor:
-            et.SubElement(block1,
-                          'TxnDescriptor').text = builder.dynamic_descriptor
+            et.SubElement(block1, "TxnDescriptor").text = builder.dynamic_descriptor
 
         response = self.do_transaction(
-            self._build_envelope(transaction, builder.client_transaction_id))
+            self._build_envelope(transaction, builder.client_transaction_id)
+        )
         return self._map_response(response, builder.payment_method)
 
     def serialize_request(self, _builder):
         raise UnsupportedTransactionException(
-            'Portico does not support hosted payments.')
+            "Portico does not support hosted payments."
+        )
 
     def manage_transaction(self, builder):
         transaction = et.Element(self._map_transaction_type(builder))
@@ -1017,79 +1212,89 @@ class PorticoConnector(XmlGateway):
         if builder.transaction_type != TransactionType.BatchClose:
             root = None
 
-            if (builder.transaction_type == TransactionType.Reversal
-                    or builder.transaction_type == TransactionType.Refund
-                    or builder.payment_method.payment_method_type ==
-                    PaymentMethodType.Gift
-                    or builder.payment_method.payment_method_type ==
-                    PaymentMethodType.ACH):
-                root = et.SubElement(transaction, 'Block1')
+            if (
+                builder.transaction_type == TransactionType.Reversal
+                or builder.transaction_type == TransactionType.Refund
+                or builder.payment_method.payment_method_type == PaymentMethodType.Gift
+                or builder.payment_method.payment_method_type == PaymentMethodType.ACH
+            ):
+                root = et.SubElement(transaction, "Block1")
             else:
                 root = transaction
 
             # amount
             if builder.amount is not None:
-                et.SubElement(root, 'Amt').text = str(builder.amount)
+                et.SubElement(root, "Amt").text = str(builder.amount)
 
             # gratuity
             if builder.gratuity is not None:
-                et.SubElement(root, 'GratuityAmtInfo').text = str(
-                    builder.gratuity)
+                et.SubElement(root, "GratuityAmtInfo").text = str(builder.gratuity)
 
             # transaction id
-            if builder.transaction_type != TransactionType.TokenUpdate\
-                    and builder.transaction_type != TransactionType.TokenDelete:
-                et.SubElement(root, 'GatewayTxnId').text = builder.transaction_id
+            if (
+                builder.transaction_type != TransactionType.TokenUpdate
+                and builder.transaction_type != TransactionType.TokenDelete
+            ):
+                et.SubElement(root, "GatewayTxnId").text = builder.transaction_id
 
             # client transaction id
-            if builder.transaction_type == TransactionType.Reversal and builder.client_transaction_id:
-                et.SubElement(
-                    root, 'ClientTxnId').text = builder.client_transaction_id
+            if (
+                builder.transaction_type == TransactionType.Reversal
+                and builder.client_transaction_id
+            ):
+                et.SubElement(root, "ClientTxnId").text = builder.client_transaction_id
 
             # cpc data
-            if (builder.transaction_type == TransactionType.Edit
-                    and builder.transaction_modifier ==
-                    TransactionModifier.LevelII):
-                cpc = et.SubElement(root, 'CPCData')
+            if (
+                builder.transaction_type == TransactionType.Edit
+                and builder.transaction_modifier == TransactionModifier.LevelII
+            ):
+                cpc = et.SubElement(root, "CPCData")
                 if builder.po_number:
-                    et.SubElement(cpc,
-                                  'CardHolderPONbr').text = builder.po_number
+                    et.SubElement(cpc, "CardHolderPONbr").text = builder.po_number
                 if builder.tax_type:
-                    et.SubElement(cpc, 'TaxType').text = builder.tax_type.value
+                    et.SubElement(cpc, "TaxType").text = builder.tax_type.value
                 if builder.tax_amount:
-                    et.SubElement(cpc, 'TaxAmt').text = str(builder.tax_amount)
+                    et.SubElement(cpc, "TaxAmt").text = str(builder.tax_amount)
 
         if builder.transaction_type == TransactionType.TokenUpdate:
-            et.SubElement(transaction, 'TokenValue').text = builder.payment_method.token
+            et.SubElement(transaction, "TokenValue").text = builder.payment_method.token
 
-            token_actions = et.SubElement(transaction, 'TokenActions')
+            token_actions = et.SubElement(transaction, "TokenActions")
 
-            set = et.SubElement(token_actions, 'Set')
+            set = et.SubElement(token_actions, "Set")
 
-            set_month_attribute = et.SubElement(set, 'Attribute')
+            set_month_attribute = et.SubElement(set, "Attribute")
 
-            et.SubElement(set_month_attribute, 'Name').text = 'ExpMonth'
+            et.SubElement(set_month_attribute, "Name").text = "ExpMonth"
 
-            et.SubElement(set_month_attribute, 'Value').text = builder.payment_method.exp_month
+            et.SubElement(set_month_attribute, "Value").text = (
+                builder.payment_method.exp_month
+            )
 
-            set_year_attribute = et.SubElement(set, 'Attribute')
+            set_year_attribute = et.SubElement(set, "Attribute")
 
-            et.SubElement(set_year_attribute, 'Name').text = 'ExpYear'
+            et.SubElement(set_year_attribute, "Name").text = "ExpYear"
 
-            et.SubElement(set_year_attribute, 'Value').text = builder.payment_method.exp_year
+            et.SubElement(set_year_attribute, "Value").text = (
+                builder.payment_method.exp_year
+            )
 
         if builder.transaction_type == TransactionType.TokenDelete:
-            et.SubElement(transaction, 'TokenValue').text = builder.payment_method.token
+            et.SubElement(transaction, "TokenValue").text = builder.payment_method.token
 
-            token_actions = et.SubElement(transaction, 'TokenActions')
+            token_actions = et.SubElement(transaction, "TokenActions")
 
-            et.SubElement(token_actions, 'Delete')
+            et.SubElement(token_actions, "Delete")
 
         response = self.do_transaction(
-            self._build_envelope(transaction, builder.client_transaction_id))
+            self._build_envelope(transaction, builder.client_transaction_id)
+        )
 
-        if builder.transaction_type == TransactionType.TokenUpdate\
-                or builder.transaction_type == TransactionType.TokenDelete:
+        if (
+            builder.transaction_type == TransactionType.TokenUpdate
+            or builder.transaction_type == TransactionType.TokenDelete
+        ):
             return True
 
         return self._map_response(response, builder.payment_method)
@@ -1097,72 +1302,78 @@ class PorticoConnector(XmlGateway):
     def process_report(self, builder):
         transaction = et.Element(self._map_report_type(builder.report_type))
         if builder.timezone_conversion:
-            et.SubElement(transaction,
-                          'TzConversion').text = builder.timezone_conversion
+            et.SubElement(transaction, "TzConversion").text = (
+                builder.timezone_conversion
+            )
 
         if builder.report_type == ReportType.FindTransactions:
-            criteria = et.SubElement(transaction, 'Criteria')
+            criteria = et.SubElement(transaction, "Criteria")
 
             if len(builder.search_criteria) > 0:
-                for key, value in builder.search_criteria.items():
+                for key, value in list(builder.search_criteria.items()):
                     et.SubElement(criteria, key).text = value
 
         if isinstance(builder, gp.api.builders.TransactionReportBuilder):
             if builder.device_id:
-                et.SubElement(transaction, 'DeviceId').text = builder.device_id
+                et.SubElement(transaction, "DeviceId").text = builder.device_id
 
             if builder.start_date is not None:
-                et.SubElement(transaction,
-                              'RptStartUtcDT').text = builder.start_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                et.SubElement(transaction, "RptStartUtcDT").text = (
+                    builder.start_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                )
 
             if builder.end_date is not None:
-                et.SubElement(transaction,
-                              'RptEndUtcDT').text = builder.end_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                et.SubElement(transaction, "RptEndUtcDT").text = (
+                    builder.end_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                )
 
             if builder.transaction_id:
-                et.SubElement(transaction,
-                              'TxnId').text = builder.transaction_id
+                et.SubElement(transaction, "TxnId").text = builder.transaction_id
 
         response = self.do_transaction(self._build_envelope(transaction))
         return self._map_report_response(response, builder.report_type)
 
     def _build_envelope(self, transaction, client_transaction_id=None):
         envelope = et.Element(
-            'soap:Envelope', {
-                'xmlns:soap': 'http://schemas.xmlsoap.org/soap/envelope/',
-            })
-        body = et.SubElement(envelope, 'soap:Body')
-        request = et.SubElement(body, 'PosRequest', {
-            'xmlns': 'http://Hps.Exchange.PosGateway'
-        })
-        version1 = et.SubElement(request, 'Ver1.0')
+            "soap:Envelope",
+            {
+                "xmlns:soap": "http://schemas.xmlsoap.org/soap/envelope/",
+            },
+        )
+        body = et.SubElement(envelope, "soap:Body")
+        request = et.SubElement(
+            body, "PosRequest", {"xmlns": "http://Hps.Exchange.PosGateway"}
+        )
+        version1 = et.SubElement(request, "Ver1.0")
 
         # header
-        header = et.SubElement(version1, 'Header')
+        header = et.SubElement(version1, "Header")
         if self.secret_api_key is not None:
-            et.SubElement(header, 'SecretAPIKey').text = self.secret_api_key
+            et.SubElement(header, "SecretAPIKey").text = self.secret_api_key
         if self.site_id is not None:
-            et.SubElement(header, 'SiteId').text = str(self.site_id)
+            et.SubElement(header, "SiteId").text = str(self.site_id)
         if self.license_id is not None:
-            et.SubElement(header, 'LicenseId').text = str(self.license_id)
+            et.SubElement(header, "LicenseId").text = str(self.license_id)
         if self.device_id is not None:
-            et.SubElement(header, 'DeviceId').text = str(self.device_id)
+            et.SubElement(header, "DeviceId").text = str(self.device_id)
         if self.username is not None:
-            et.SubElement(header, 'UserName').text = str(self.username)
+            et.SubElement(header, "UserName").text = str(self.username)
         if self.password is not None:
-            et.SubElement(header, 'Password').text = self.password
+            et.SubElement(header, "Password").text = self.password
         if self.developer_id is not None:
-            et.SubElement(header, 'DeveloperID').text = str(self.developer_id)
+            et.SubElement(header, "DeveloperID").text = str(self.developer_id)
         if self.version_number is not None:
-            et.SubElement(header, 'VersionNbr').text = str(self.version_number)
+            et.SubElement(header, "VersionNbr").text = str(self.version_number)
         if client_transaction_id is not None:
-            et.SubElement(header, 'ClientTxnId').text = str(client_transaction_id)
+            et.SubElement(header, "ClientTxnId").text = str(client_transaction_id)
         if self.sdkNameVersion is not None:
-            et.SubElement(header, 'SDKNameVersion').text = str(self.sdkNameVersion)
+            et.SubElement(header, "SDKNameVersion").text = str(self.sdkNameVersion)
         else:
-            et.SubElement(header, 'SDKNameVersion').text = str('python;version=')+str(self._get_release_version())
+            et.SubElement(header, "SDKNameVersion").text = str("python;version=") + str(
+                self._get_release_version()
+            )
 
-        trans = et.SubElement(version1, 'Transaction')
+        trans = et.SubElement(version1, "Transaction")
         trans.append(transaction)
 
         return et.tostring(envelope)
@@ -1171,146 +1382,154 @@ class PorticoConnector(XmlGateway):
         result = Transaction()
 
         namespaces = {
-            'http://Hps.Exchange.PosGateway': None,
-            'http://schemas.xmlsoap.org/soap/envelope/': None
+            "http://Hps.Exchange.PosGateway": None,
+            "http://schemas.xmlsoap.org/soap/envelope/": None,
         }
         root = xmltodict.parse(
-            raw_response, process_namespaces=True,
-            namespaces=namespaces)['Envelope']['Body']['PosResponse']['Ver1.0']
-        accepted_codes = ['00', '0', '85', '10']
+            raw_response, process_namespaces=True, namespaces=namespaces
+        )["Envelope"]["Body"]["PosResponse"]["Ver1.0"]
+        accepted_codes = ["00", "0", "85", "10"]
 
-        header = root['Header']
+        header = root["Header"]
 
         #  check gateway response
-        gateway_rsp_code = self._normalize_response(header['GatewayRspCode'])
-        gateway_rsp_text = header['GatewayRspMsg']
+        gateway_rsp_code = self._normalize_response(header["GatewayRspCode"])
+        gateway_rsp_text = header["GatewayRspMsg"]
 
         if gateway_rsp_code not in accepted_codes:
             raise GatewayException(
-                'Unexpected Gateway Response: {} - {}'.format(
-                    gateway_rsp_code,
-                    gateway_rsp_text), gateway_rsp_code, gateway_rsp_text)
+                "Unexpected Gateway Response: {} - {}".format(
+                    gateway_rsp_code, gateway_rsp_text
+                ),
+                gateway_rsp_code,
+                gateway_rsp_text,
+            )
 
-        if 'Transaction' not in root:
-            raise GatewayException('Unexpected Response: {} - {}'.format(
-                gateway_rsp_code, gateway_rsp_text), gateway_rsp_code,
-                                   gateway_rsp_text)
+        if "Transaction" not in root:
+            raise GatewayException(
+                "Unexpected Response: {} - {}".format(
+                    gateway_rsp_code, gateway_rsp_text
+                ),
+                gateway_rsp_code,
+                gateway_rsp_text,
+            )
 
-        items = list(root['Transaction'].items())
+        items = list(root["Transaction"].items())
         item = items[0] if items[0] is not None else {}
         item = item[1] if item[1] is not None else item
 
-        if 'AuthAmt' in item:
-            result.authorized_amount = str(item['AuthAmt'])
-        if 'AvailableBalance' in item:
-            result.available_balance = str(item['AvailableBalance'])
-        if 'AVSRsltCode' in item:
-            result.avs_response_code = str(item['AVSRsltCode'])
-        if 'AVSRsltText' in item:
-            result.avs_response_message = str(item['AVSRsltText'])
-        if 'BalanceAmt' in item:
-            result.balance_amount = str(item['BalanceAmt'])
-        if 'CardType' in item:
-            result.card_type = str(item['CardType'])
-        if 'TokenPANLast4' in item:
-            result.card_last4 = str(item['TokenPANLast4'])
-        if 'CAVVResultCode' in item:
-            result.cavv_response_code = str(item['CAVVResultCode'])
-        if 'CPCInd' in item:
-            result.commercial_indicator = str(item['CPCInd'])
-        if 'CVVRsltCode' in item:
-            result.cvn_response_code = str(item['CVVRsltCode'])
-        if 'CVVRsltText' in item:
-            result.cvn_response_message = str(item['CVVRsltText'])
-        if 'EMVIssuerResp' in item:
-            result.emv_issuer_response = str(item['EMVIssuerResp'])
-        if 'PointsBalanceAmt' in item:
-            result.points_balance_amount = str(item['PointsBalanceAmt'])
-        if 'RecurringDataCode' in item:
-            result.recurring_data_code = str(item['RecurringDataCode'])
-        if 'RefNbr' in item:
-            result.reference_number = str(item['RefNbr'])
+        if "AuthAmt" in item:
+            result.authorized_amount = str(item["AuthAmt"])
+        if "AvailableBalance" in item:
+            result.available_balance = str(item["AvailableBalance"])
+        if "AVSRsltCode" in item:
+            result.avs_response_code = str(item["AVSRsltCode"])
+        if "AVSRsltText" in item:
+            result.avs_response_message = str(item["AVSRsltText"])
+        if "BalanceAmt" in item:
+            result.balance_amount = str(item["BalanceAmt"])
+        if "CardType" in item:
+            result.card_type = str(item["CardType"])
+        if "TokenPANLast4" in item:
+            result.card_last4 = str(item["TokenPANLast4"])
+        if "CAVVResultCode" in item:
+            result.cavv_response_code = str(item["CAVVResultCode"])
+        if "CPCInd" in item:
+            result.commercial_indicator = str(item["CPCInd"])
+        if "CVVRsltCode" in item:
+            result.cvn_response_code = str(item["CVVRsltCode"])
+        if "CVVRsltText" in item:
+            result.cvn_response_message = str(item["CVVRsltText"])
+        if "EMVIssuerResp" in item:
+            result.emv_issuer_response = str(item["EMVIssuerResp"])
+        if "PointsBalanceAmt" in item:
+            result.points_balance_amount = str(item["PointsBalanceAmt"])
+        if "RecurringDataCode" in item:
+            result.recurring_data_code = str(item["RecurringDataCode"])
+        if "RefNbr" in item:
+            result.reference_number = str(item["RefNbr"])
         result.response_code = gateway_rsp_code
-        if 'RspCode' in item:
-            result.response_code = self._normalize_response(
-                str(item['RspCode']))
+        if "RspCode" in item:
+            result.response_code = self._normalize_response(str(item["RspCode"]))
         result.response_message = gateway_rsp_text
-        if 'RspText' in item:
-            result.response_message = str(item['RspText'])
-        elif 'RspMessage' in item:
-            result.response_message = str(item['RspMessage'])
-        if 'TxnDescriptor' in item:
-            result.transaction_descriptor = str(item['TxnDescriptor'])
-        if 'HostRspDT' in item:
-            result.host_response_date = str(item['HostRspDT'])
+        if "RspText" in item:
+            result.response_message = str(item["RspText"])
+        elif "RspMessage" in item:
+            result.response_message = str(item["RspMessage"])
+        if "TxnDescriptor" in item:
+            result.transaction_descriptor = str(item["TxnDescriptor"])
+        if "HostRspDT" in item:
+            result.host_response_date = str(item["HostRspDT"])
 
         if payment_method is not None:
             result.transaction_reference = TransactionReference()
-            result.transaction_reference.payment_method_type = payment_method.payment_method_type
-            if 'GatewayTxnId' in header:
-                result.transaction_reference.transaction_id = header[
-                    'GatewayTxnId']
-            if 'AuthCode' in item:
-                result.transaction_reference.auth_code = item['AuthCode']
+            result.transaction_reference.payment_method_type = (
+                payment_method.payment_method_type
+            )
+            if "GatewayTxnId" in header:
+                result.transaction_reference.transaction_id = header["GatewayTxnId"]
+            if "AuthCode" in item:
+                result.transaction_reference.auth_code = item["AuthCode"]
 
         # gift card create data
-        if 'CardData' in item:
+        if "CardData" in item:
             result.gift_card = GiftCard()
-            if 'CardNbr' in item['CardData']:
-                result.gift_card.number = item['CardData']['CardNbr']
-            if 'Alias' in item['CardData']:
-                result.gift_card.alias = item['CardData']['Alias']
-            if 'PIN' in item['CardData']:
-                result.gift_card.pin = item['CardData']['PIN']
+            if "CardNbr" in item["CardData"]:
+                result.gift_card.number = item["CardData"]["CardNbr"]
+            if "Alias" in item["CardData"]:
+                result.gift_card.alias = item["CardData"]["Alias"]
+            if "PIN" in item["CardData"]:
+                result.gift_card.pin = item["CardData"]["PIN"]
 
         # token data
-        if 'TokenData' in header:
-            if 'TokenValue' in header['TokenData']:
-                result.token = header['TokenData']['TokenValue']
+        if "TokenData" in header:
+            if "TokenValue" in header["TokenData"]:
+                result.token = header["TokenData"]["TokenValue"]
 
         # batch information
-        if 'BatchId' in item:
+        if "BatchId" in item:
             result.batch_summary = BatchSummary()
-            result.batch_summary.id = item['BatchId']
-            if 'TxnCnt' in item:
-                result.batch_summary.transaction_count = item['TxnCnt']
-            if 'TotalAmt' in item:
-                result.batch_summary.total_amount = item['TotalAmt']
-            if 'BatchSeqNbr' in item:
-                result.batch_summary.sequence_number = item['BatchSeqNbr']
+            result.batch_summary.id = item["BatchId"]
+            if "TxnCnt" in item:
+                result.batch_summary.transaction_count = item["TxnCnt"]
+            if "TotalAmt" in item:
+                result.batch_summary.total_amount = item["TotalAmt"]
+            if "BatchSeqNbr" in item:
+                result.batch_summary.sequence_number = item["BatchSeqNbr"]
 
         # debit mac
-        if 'DebitMac' in item:
+        if "DebitMac" in item:
             result.debit_mac = DebitMac()
-            if 'TransactionCode' in item:
-                result.debit_mac.transaction_code = item['TransactionCode']
-            if 'TransmissionNumber' in item:
-                result.debit_mac.transmission_number = item[
-                    'TransmissionNumber']
-            if 'BankResponseCode' in item:
-                result.debit_mac.bank_response_code = item['BankResponseCode']
-            if 'MacKey' in item:
-                result.debit_mac.mac_key = item['MacKey']
-            if 'PinKey' in item:
-                result.debit_mac.pin_key = item['PinKey']
-            if 'FieldKey' in item:
-                result.debit_mac.field_key = item['FieldKey']
-            if 'TraceNumber' in item:
-                result.debit_mac.trace_number = item['TraceNumber']
-            if 'MessageAuthenticationCode' in item:
+            if "TransactionCode" in item:
+                result.debit_mac.transaction_code = item["TransactionCode"]
+            if "TransmissionNumber" in item:
+                result.debit_mac.transmission_number = item["TransmissionNumber"]
+            if "BankResponseCode" in item:
+                result.debit_mac.bank_response_code = item["BankResponseCode"]
+            if "MacKey" in item:
+                result.debit_mac.mac_key = item["MacKey"]
+            if "PinKey" in item:
+                result.debit_mac.pin_key = item["PinKey"]
+            if "FieldKey" in item:
+                result.debit_mac.field_key = item["FieldKey"]
+            if "TraceNumber" in item:
+                result.debit_mac.trace_number = item["TraceNumber"]
+            if "MessageAuthenticationCode" in item:
                 result.debit_mac.message_authentication_code = item[
-                    'MessageAuthenticationCode']
+                    "MessageAuthenticationCode"
+                ]
 
         return result
 
     def _map_report_response(self, raw_response, report_type):
         namespaces = {
-            'http://Hps.Exchange.PosGateway': None,
-            'http://schemas.xmlsoap.org/soap/envelope/': None
+            "http://Hps.Exchange.PosGateway": None,
+            "http://schemas.xmlsoap.org/soap/envelope/": None,
         }
         root = xmltodict.parse(
-            raw_response, process_namespaces=True, namespaces=namespaces)
-        root = root['Envelope']['Body']['PosResponse']['Ver1.0']['Transaction']
+            raw_response, process_namespaces=True, namespaces=namespaces
+        )
+        root = root["Envelope"]["Body"]["PosResponse"]["Ver1.0"]["Transaction"]
         doc = root[self._map_report_type(report_type)]
 
         if report_type == ReportType.Activity and doc["Details"] is not None:
@@ -1324,18 +1543,18 @@ class PorticoConnector(XmlGateway):
         if report_type == ReportType.FindTransactions and len(doc) > 0:
             response = []
 
-            if isinstance(doc['Transactions'], dict):
+            if isinstance(doc["Transactions"], dict):
 
-                for key, value in doc.items():
+                for key, value in list(doc.items()):
                     response.append(self._hydrate_transaction_summary(value))
 
                 return response
 
-            for value in doc['Transactions']:
+            for value in doc["Transactions"]:
                 response.append(self._hydrate_transaction_summary(value))
 
             return response
-            
+
         if report_type == ReportType.TransactionDetail:
             return self._hydrate_transaction_summary(doc)
 
@@ -1343,8 +1562,8 @@ class PorticoConnector(XmlGateway):
 
     @staticmethod
     def _normalize_response(original_response):
-        if original_response == '0' or original_response == '85':
-            return '00'
+        if original_response == "0" or original_response == "85":
+            return "00"
         return original_response
 
     @staticmethod
@@ -1352,122 +1571,128 @@ class PorticoConnector(XmlGateway):
         ret = None
 
         if builder.transaction_type == TransactionType.BatchClose:
-            ret = 'BatchClose'
+            ret = "BatchClose"
         elif builder.transaction_type == TransactionType.Decline:
             if builder.transaction_modifier == TransactionModifier.ChipDecline:
-                ret = 'ChipCardDecline'
+                ret = "ChipCardDecline"
             elif builder.transaction_modifier == TransactionModifier.FraudDecline:
-                ret = 'OverrideFraudDecline'
+                ret = "OverrideFraudDecline"
         elif builder.transaction_type == TransactionType.Verify:
-            ret = 'CreditAccountVerify'
+            ret = "CreditAccountVerify"
         elif builder.transaction_type == TransactionType.Capture:
-            ret = 'CreditAddToBatch'
+            ret = "CreditAddToBatch"
         elif builder.transaction_type == TransactionType.Auth:
             if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
                 if builder.transaction_modifier == TransactionModifier.Additional:
-                    ret = 'CreditAdditionalAuth'
+                    ret = "CreditAdditionalAuth"
                 elif builder.transaction_modifier == TransactionModifier.Incremental:
-                    ret = 'CreditIncrementalAuth'
+                    ret = "CreditIncrementalAuth"
                 elif builder.transaction_modifier == TransactionModifier.Offline:
-                    ret = 'CreditOfflineAuth'
+                    ret = "CreditOfflineAuth"
                 elif builder.transaction_modifier == TransactionModifier.Recurring:
-                    ret = 'RecurringBillingAuth'
+                    ret = "RecurringBillingAuth"
                 else:
-                    ret = 'CreditAuth'
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Recurring:
-                ret = 'RecurringBillingAuth'
+                    ret = "CreditAuth"
+            elif (
+                builder.payment_method.payment_method_type
+                == PaymentMethodType.Recurring
+            ):
+                ret = "RecurringBillingAuth"
         elif builder.transaction_type == TransactionType.Sale:
             if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
                 if builder.transaction_modifier == TransactionModifier.Offline:
-                    ret = 'CreditOfflineSale'
+                    ret = "CreditOfflineSale"
                 elif builder.transaction_modifier == TransactionModifier.Recurring:
-                    ret = 'RecurringBilling'
+                    ret = "RecurringBilling"
                 else:
-                    ret = 'CreditSale'
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Recurring:
-                if builder.payment_method.payment_type == 'ACH':
-                    ret = 'CheckSale'
+                    ret = "CreditSale"
+            elif (
+                builder.payment_method.payment_method_type
+                == PaymentMethodType.Recurring
+            ):
+                if builder.payment_method.payment_type == "ACH":
+                    ret = "CheckSale"
                 else:
-                    ret = 'RecurringBilling'
+                    ret = "RecurringBilling"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
-                ret = 'DebitSale'
+                ret = "DebitSale"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Cash:
-                ret = 'CashSale'
+                ret = "CashSale"
             elif builder.payment_method.payment_method_type == PaymentMethodType.ACH:
-                ret = 'CheckSale'
+                ret = "CheckSale"
             elif builder.payment_method.payment_method_type == PaymentMethodType.EBT:
                 if builder.transaction_modifier == TransactionModifier.CashBack:
-                    ret = 'EBTCashBackPurchase'
+                    ret = "EBTCashBackPurchase"
                 elif builder.transaction_modifier == TransactionModifier.Voucher:
-                    ret = 'EBTVoucherPurchase'
+                    ret = "EBTVoucherPurchase"
                 else:
-                    ret = 'EBTFSPurchase'
+                    ret = "EBTFSPurchase"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
-                ret = 'GiftCardSale'
+                ret = "GiftCardSale"
         elif builder.transaction_type == TransactionType.Refund:
             if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
-                ret = 'CreditReturn'
+                ret = "CreditReturn"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
-                ret = 'DebitReturn'
+                ret = "DebitReturn"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Cash:
-                ret = 'CashReturn'
+                ret = "CashReturn"
             elif builder.payment_method.payment_method_type == PaymentMethodType.EBT:
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
-                ret = 'EBTFSReturn'
+                ret = "EBTFSReturn"
         elif builder.transaction_type == TransactionType.Reversal:
             if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
-                ret = 'CreditReversal'
+                ret = "CreditReversal"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
-                ret = 'DebitReversal'
+                ret = "DebitReversal"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
-                ret = 'GiftCardReversal'
+                ret = "GiftCardReversal"
         elif builder.transaction_type == TransactionType.Edit:
             if builder.transaction_modifier == TransactionModifier.LevelII:
-                ret = 'CreditCPCEdit'
+                ret = "CreditCPCEdit"
             else:
-                ret = 'CreditTxnEdit'
+                ret = "CreditTxnEdit"
         elif builder.transaction_type == TransactionType.Void:
             if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
-                ret = 'CreditVoid'
+                ret = "CreditVoid"
             elif builder.payment_method.payment_method_type == PaymentMethodType.ACH:
-                ret = 'CheckVoid'
+                ret = "CheckVoid"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
-                ret = 'GiftCardVoid'
+                ret = "GiftCardVoid"
         elif builder.transaction_type == TransactionType.AddValue:
             if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
-                ret = 'PrePaidAddValue'
+                ret = "PrePaidAddValue"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
-                ret = 'DebitAddValue'
+                ret = "DebitAddValue"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
-                ret = 'GiftCardAddValue'
+                ret = "GiftCardAddValue"
         elif builder.transaction_type == TransactionType.Balance:
             if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
-                ret = 'PrePaidBalanceInquiry'
+                ret = "PrePaidBalanceInquiry"
             elif builder.payment_method.payment_method_type == PaymentMethodType.EBT:
-                ret = 'EBTBalanceInquiry'
+                ret = "EBTBalanceInquiry"
             elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
-                ret = 'GiftCardBalance'
+                ret = "GiftCardBalance"
         elif builder.transaction_type == TransactionType.BenefitWithdrawal:
-            ret = 'EBTCashBenefitWithdrawal'
+            ret = "EBTCashBenefitWithdrawal"
         elif builder.transaction_type == TransactionType.Activate:
-            ret = 'GiftCardActivate'
+            ret = "GiftCardActivate"
         elif builder.transaction_type == TransactionType.Alias:
-            ret = 'GiftCardAlias'
+            ret = "GiftCardAlias"
         elif builder.transaction_type == TransactionType.Deactivate:
-            ret = 'GiftCardDeactivate'
+            ret = "GiftCardDeactivate"
         elif builder.transaction_type == TransactionType.Replace:
-            ret = 'GiftCardReplace'
+            ret = "GiftCardReplace"
         elif builder.transaction_type == TransactionType.Reward:
-            ret = 'GiftCardReward'
+            ret = "GiftCardReward"
         elif builder.transaction_type == TransactionType.TokenUpdate:
-            ret = 'ManageTokens'
+            ret = "ManageTokens"
         elif builder.transaction_type == TransactionType.TokenDelete:
-            ret = 'ManageTokens'
+            ret = "ManageTokens"
 
         if ret is None:
             raise UnsupportedTransactionException()
@@ -1477,16 +1702,16 @@ class PorticoConnector(XmlGateway):
     @staticmethod
     def _map_report_type(report_type):
         if report_type == ReportType.Activity:
-            return 'ReportActivity'
+            return "ReportActivity"
         elif report_type == ReportType.FindTransactions:
-            return 'FindTransactions'
+            return "FindTransactions"
         elif report_type == ReportType.TransactionDetail:
-            return 'ReportTxnDetail'
+            return "ReportTxnDetail"
 
         raise UnsupportedTransactionException()
 
     def _has_token(self, payment_method):
-        if self._has_attr(payment_method, 'token') and payment_method.token is not None:
+        if self._has_attr(payment_method, "token") and payment_method.token is not None:
             return True, payment_method.token
 
         return False, None
@@ -1513,12 +1738,14 @@ class PorticoConnector(XmlGateway):
             summary.device_id = item["DeviceId"]
 
         if "RspCode" in item or "IssuerRspCode" in item:
-            summary.issuer_response_code = item[
-                "RspCode"] if "RspCode" in item else item["IssuerRspCode"]
+            summary.issuer_response_code = (
+                item["RspCode"] if "RspCode" in item else item["IssuerRspCode"]
+            )
 
         if "RspText" in item or "IssuerRspText" in item:
-            summary.issuer_response_message = item[
-                "RspText"] if "RspText" in item else item["IssuerRspText"]
+            summary.issuer_response_message = (
+                item["RspText"] if "RspText" in item else item["IssuerRspText"]
+            )
 
         if "MaskedCardNbr" in item:
             summary.masked_card_number = item["MaskedCardNbr"]
@@ -1528,7 +1755,8 @@ class PorticoConnector(XmlGateway):
 
         if "GatewayRspCode" in item:
             summary.gateway_response_code = self._normalize_response(
-                item["GatewayRspCode"])
+                item["GatewayRspCode"]
+            )
 
         if "GatewayResponseMsg" in item:
             summary.gateway_response_message = item["GatewayResponseMsg"]
@@ -1543,17 +1771,17 @@ class PorticoConnector(XmlGateway):
             summary.settlement_amount = item["SettlementAmt"]
 
         if "TxnStatus" in item or "Status" in item:
-            summary.status = item["TxnStatus"] \
-                if "TxnStatus" in item \
-                else item["Status"]
+            summary.status = (
+                item["TxnStatus"] if "TxnStatus" in item else item["Status"]
+            )
         elif "Data" in item:
             if "TxnStatus" in item["Data"]:
                 summary.status = item["Data"]["TxnStatus"]
 
         if "TxnUtcDT" in item or "ReqUtcDT" in item:
-            summary.transaction_date = item["TxnUtcDT"] \
-                if "TxnUtcDT" in item \
-                else item["ReqUtcDT"]
+            summary.transaction_date = (
+                item["TxnUtcDT"] if "TxnUtcDT" in item else item["ReqUtcDT"]
+            )
 
         if "GatewayTxnId" in item:
             summary.transaction_id = item["GatewayTxnId"]
@@ -1576,7 +1804,9 @@ class PorticoConnector(XmlGateway):
             return False
 
     def _get_release_version(self):
-        return pkg_resources.require("GlobalPayments.Api")[0].version
+        if "site-packages" in __file__:
+            return version("GlobalPayments.Api")
+        return "0.0.0"
 
 
 class RealexConnector(XmlGateway):
@@ -1601,52 +1831,61 @@ class RealexConnector(XmlGateway):
         return True
 
     def process_authorization(self, builder):
-        timestamp = builder.timestamp \
-            if builder.timestamp \
+        timestamp = (
+            builder.timestamp
+            if builder.timestamp
             else GenerationUtils.generate_timestamp()
-        order_id = builder.order_id \
-            if builder.order_id \
+        )
+        order_id = (
+            builder.order_id
+            if builder.order_id
             else GenerationUtils.generate_order_id()
+        )
         request_type = self._map_auth_request_type(builder)
 
-        request = et.Element('request', {
-            'timestamp': str(timestamp),
-            'type': str(request_type),
-        })
+        request = et.Element(
+            "request",
+            {
+                "timestamp": str(timestamp),
+                "type": str(request_type),
+            },
+        )
 
-        et.SubElement(request, 'merchantid').text = self.merchant_id
-        et.SubElement(request, 'account').text = self.account_id
-        et.SubElement(request, 'channel').text = self.channel
-        et.SubElement(request, 'orderid').text = order_id
+        et.SubElement(request, "merchantid").text = self.merchant_id
+        et.SubElement(request, "account").text = self.account_id
+        et.SubElement(request, "channel").text = self.channel
+        et.SubElement(request, "orderid").text = order_id
 
         if builder.amount is not None:
             atts = {}
             if builder.currency:
-                atts['currency'] = builder.currency
-            et.SubElement(request, 'amount', atts).text = str(
-                self.format_amount(builder.amount))
+                atts["currency"] = builder.currency
+            et.SubElement(request, "amount", atts).text = str(
+                self.format_amount(builder.amount)
+            )
 
         if isinstance(builder.payment_method, CreditCardData):
             card = builder.payment_method
 
-            card_element = et.SubElement(request, 'card')
-            et.SubElement(card_element, 'number').text = card.number
-            et.SubElement(card_element, 'expdate').text = card.short_expiry
-            et.SubElement(card_element, 'chname').text = card.card_holder_name
-            et.SubElement(card_element, 'type').text = card.card_type.upper()
+            card_element = et.SubElement(request, "card")
+            et.SubElement(card_element, "number").text = card.number
+            et.SubElement(card_element, "expdate").text = card.short_expiry
+            et.SubElement(card_element, "chname").text = card.card_holder_name
+            et.SubElement(card_element, "type").text = card.card_type.upper()
 
             if card.cvn is not None:
-                cvn_element = et.SubElement(card_element, 'cvn')
-                et.SubElement(cvn_element, 'number').text = card.cvn
+                cvn_element = et.SubElement(card_element, "cvn")
+                et.SubElement(cvn_element, "number").text = card.cvn
                 if card.cvn_presence_indicator:
-                    et.SubElement(cvn_element, 'presind').text = str(
-                        card.cvn_presence_indicator.value)
+                    et.SubElement(cvn_element, "presind").text = str(
+                        card.cvn_presence_indicator.value
+                    )
 
             if card.three_d_secure is not None:
-                mpi = et.SubElement(request, 'mpi')
-                et.SubElement(mpi, 'cavv').text = card.three_d_secure.cavv
-                et.SubElement(mpi, 'xid').text = card.three_d_secure.xid
-                et.SubElement(mpi, 'eci').text = card.three_d_secure.eci
+                mpi = et.SubElement(request, "mpi")
+                et.SubElement(mpi, "cavv").text = card.three_d_secure.cavv
+                et.SubElement(mpi, "xid").text = card.three_d_secure.xid
+                et.SubElement(mpi, "eci").text = card.three_d_secure.eci
 
             to_hash = []
             if builder.transaction_type == TransactionType.Verify:
@@ -1654,34 +1893,33 @@ class RealexConnector(XmlGateway):
                     str(timestamp),
                     str(self.merchant_id),
                     str(order_id),
-                    str(card.number)
+                    str(card.number),
                 ]
             else:
                 to_hash = [
                     str(timestamp),
                     str(self.merchant_id),
                     str(order_id),
-                    str(self.format_amount(builder.amount))
-                    if builder.amount else '',
+                    str(self.format_amount(builder.amount)) if builder.amount else "",
                     str(builder.currency),
-                    str(card.number)
+                    str(card.number),
                 ]
 
-            et.SubElement(request,
-                          'sha1hash').text = GenerationUtils.generate_hash(
-                              self.shared_secret, to_hash)
+            et.SubElement(request, "sha1hash").text = GenerationUtils.generate_hash(
+                self.shared_secret, to_hash
+            )
 
         if isinstance(builder.payment_method, RecurringPaymentMethod):
             recurring = builder.payment_method
-            et.SubElement(request, 'payerref').text = recurring.customer_key
-            et.SubElement(
-                request, 'paymentmethod'
-            ).text = recurring.key if recurring.key else recurring.id
+            et.SubElement(request, "payerref").text = recurring.customer_key
+            et.SubElement(request, "paymentmethod").text = (
+                recurring.key if recurring.key else recurring.id
+            )
 
             if builder.cvn is not None:
-                payment_data = et.SubElement(request, 'paymentdata')
-                cvn = et.SubElement(payment_data, 'cvn')
-                et.SubElement(cvn, 'number').text = builder.cvn
+                payment_data = et.SubElement(request, "paymentdata")
+                cvn = et.SubElement(payment_data, "cvn")
+                et.SubElement(cvn, "number").text = builder.cvn
 
             to_hash = []
             if builder.transaction_type == TransactionType.Verify:
@@ -1689,22 +1927,21 @@ class RealexConnector(XmlGateway):
                     str(timestamp),
                     str(self.merchant_id),
                     str(order_id),
-                    str(recurring.customer_key)
+                    str(recurring.customer_key),
                 ]
             else:
                 to_hash = [
                     str(timestamp),
                     str(self.merchant_id),
                     str(order_id),
-                    str(self.format_amount(builder.amount))
-                    if builder.amount else '',
+                    str(self.format_amount(builder.amount)) if builder.amount else "",
                     str(builder.currency),
-                    str(recurring.customer_key)
+                    str(recurring.customer_key),
                 ]
 
-            et.SubElement(request,
-                          'sha1hash').text = GenerationUtils.generate_hash(
-                              self.shared_secret, to_hash)
+            et.SubElement(request, "sha1hash").text = GenerationUtils.generate_hash(
+                self.shared_secret, to_hash
+            )
         else:
             # TODO: token processing
             pass
@@ -1712,43 +1949,49 @@ class RealexConnector(XmlGateway):
         # refund hash
         if builder.transaction_type == TransactionType.Refund:
             refund_hash = GenerationUtils.generate_hash(self.refund_password)
-            et.SubElement(
-                request,
-                'refundhash').text = refund_hash if refund_hash else ''
+            et.SubElement(request, "refundhash").text = (
+                refund_hash if refund_hash else ""
+            )
 
-        if (builder.transaction_type == TransactionType.Sale
-                or builder.transaction_type == TransactionType.Auth):
-            auto_settle = '1' if builder.transaction_type == TransactionType.Sale else '0'
-            et.SubElement(request, 'autosettle', {'flag': auto_settle})
+        if (
+            builder.transaction_type == TransactionType.Sale
+            or builder.transaction_type == TransactionType.Auth
+        ):
+            auto_settle = (
+                "1" if builder.transaction_type == TransactionType.Sale else "0"
+            )
+            et.SubElement(request, "autosettle", {"flag": auto_settle})
 
         # TODO: needs to be multiple
         if builder.description is not None:
-            comments = et.SubElement(request, 'comments')
-            et.SubElement(comments, 'comment', {
-                'id': '1'
-            }).text = builder.description
+            comments = et.SubElement(request, "comments")
+            et.SubElement(comments, "comment", {"id": "1"}).text = builder.description
 
         # recurring
         if builder.recurring_type is not None or builder.recurring_sequence is not None:
             et.SubElement(
-                request, 'recurring', {
-                    'type': str(builder.recurring_type.value).lower(),
-                    'sequence': str(builder.recurring_sequence.value).lower(),
-                })
+                request,
+                "recurring",
+                {
+                    "type": str(builder.recurring_type.value).lower(),
+                    "sequence": str(builder.recurring_sequence.value).lower(),
+                },
+            )
 
         # tssinfo
-        if (builder.customer_id is not None or builder.product_id is not None
-                or builder.customer_ip_address is not None
-                or builder.client_transaction_id is not None
-                or builder.billing_address is not None
-                or builder.shipping_address is not None):
-            tss_info = et.SubElement(request, 'tssinfo')
-            et.SubElement(tss_info, 'custnum').text = builder.customer_id
-            et.SubElement(tss_info, 'prodid').text = builder.product_id
-            et.SubElement(tss_info,
-                          'varref').text = builder.client_transaction_id
-            et.SubElement(tss_info,
-                          'custipaddress').text = builder.customer_ip_address
+        if (
+            builder.customer_id is not None
+            or builder.product_id is not None
+            or builder.customer_ip_address is not None
+            or builder.client_transaction_id is not None
+            or builder.billing_address is not None
+            or builder.shipping_address is not None
+        ):
+            tss_info = et.SubElement(request, "tssinfo")
+            et.SubElement(tss_info, "custnum").text = builder.customer_id
+            et.SubElement(tss_info, "prodid").text = builder.product_id
+            et.SubElement(tss_info, "varref").text = builder.client_transaction_id
+            et.SubElement(tss_info, "custipaddress").text = builder.customer_ip_address
 
             if builder.billing_address is not None:
                 tss_info.append(self._build_address(builder.billing_address))
@@ -1760,277 +2003,303 @@ class RealexConnector(XmlGateway):
         # et.SubElement(request, 'token').text = token
 
         response = self.do_transaction(et.tostring(request))
-        return self._map_response(response,
-                                  self._map_accepted_codes(request_type))
+        return self._map_response(response, self._map_accepted_codes(request_type))
 
     def serialize_request(self, builder):
         if self.hosted_payment_config is None:
             raise ApiException(
-                'Hosted configuration missing. Please check your configuration.'
+                "Hosted configuration missing. Please check your configuration."
             )
 
-        encoder = lambda x: x \
-            if self.hosted_payment_config.hpp_version == HppVersion.Version2 \
+        encoder = lambda x: (
+            x
+            if self.hosted_payment_config.hpp_version == HppVersion.Version2
             else lambda x: base64.b64encode(bytearray(x.encode()))
+        )
         request = {}
 
-        timestamp = builder.timestamp \
-            if builder.timestamp \
+        timestamp = (
+            builder.timestamp
+            if builder.timestamp
             else GenerationUtils.generate_timestamp()
-        order_id = builder.order_id \
-            if builder.order_id \
+        )
+        order_id = (
+            builder.order_id
+            if builder.order_id
             else GenerationUtils.generate_order_id()
+        )
 
         accepted_types = [
-            TransactionType.Sale, TransactionType.Auth, TransactionType.Verify
+            TransactionType.Sale,
+            TransactionType.Auth,
+            TransactionType.Verify,
         ]
         if builder.transaction_type not in accepted_types:
             raise UnsupportedTransactionException(
-                'Only charge, authorize, and verify are supported through HPP.'
+                "Only charge, authorize, and verify are supported through HPP."
             )
 
-        request['MERCHANT_ID'] = encoder(self.merchant_id)
-        request['ACCOUNT'] = encoder(self.account_id)
-        request['CHANNEL'] = encoder(self.channel)
-        request['ORDER_ID'] = encoder(order_id)
+        request["MERCHANT_ID"] = encoder(self.merchant_id)
+        request["ACCOUNT"] = encoder(self.account_id)
+        request["CHANNEL"] = encoder(self.channel)
+        request["ORDER_ID"] = encoder(order_id)
 
         if builder.amount is not None:
-            request['AMOUNT'] = encoder(self.format_amount(builder.amount))
+            request["AMOUNT"] = encoder(self.format_amount(builder.amount))
 
-        request['CURRENCY'] = encoder(builder.currency)
-        request['TIMESTAMP'] = encoder(timestamp)
-        request['AUTO_SETTLE_FLAG'] = encoder('1' \
-            if builder.transaction_type == TransactionType.Sale \
-            else '0')
-        request['COMMENT1'] = encoder(builder.description)
+        request["CURRENCY"] = encoder(builder.currency)
+        request["TIMESTAMP"] = encoder(timestamp)
+        request["AUTO_SETTLE_FLAG"] = encoder(
+            "1" if builder.transaction_type == TransactionType.Sale else "0"
+        )
+        request["COMMENT1"] = encoder(builder.description)
         # request['COMMENT2'] =
 
         if self.hosted_payment_config.request_transaction_stability_score is not None:
-            request['RETURN_TSS'] = encoder('1' \
-                if self.hosted_payment_config.request_transaction_stability_score \
-                else '0')
+            request["RETURN_TSS"] = encoder(
+                "1"
+                if self.hosted_payment_config.request_transaction_stability_score
+                else "0"
+            )
 
         if self.hosted_payment_config.dynamic_currency_conversion_enabled is not None:
-            request['DCC_ENABLE'] = encoder('1' \
-                if self.hosted_payment_config.dynamic_currency_conversion_enabled \
-                else '0')
+            request["DCC_ENABLE"] = encoder(
+                "1"
+                if self.hosted_payment_config.dynamic_currency_conversion_enabled
+                else "0"
+            )
 
         if builder.hosted_payment_data is not None:
-            request['CUST_NUM'] = encoder(
-                builder.hosted_payment_data.customer_number)
+            request["CUST_NUM"] = encoder(builder.hosted_payment_data.customer_number)
 
-            if (self.hosted_payment_config.display_saved_cards is not None
-                    and builder.hosted_payment_data.customer_key is not None):
-                request['HPP_SELECT_STORED_CARD'] = encoder(
-                    builder.hosted_payment_data.customer_key)
+            if (
+                self.hosted_payment_config.display_saved_cards is not None
+                and builder.hosted_payment_data.customer_key is not None
+            ):
+                request["HPP_SELECT_STORED_CARD"] = encoder(
+                    builder.hosted_payment_data.customer_key
+                )
 
-            request['OFFER_SAVE_CARD'] = encoder('1' \
-                if builder.hosted_payment_data.offer_to_save_card \
-                else '0')
-            request['PAYER_EXIST'] = encoder('1' \
-                if builder.hosted_payment_data.customer_exists \
-                else '0')
+            request["OFFER_SAVE_CARD"] = encoder(
+                "1" if builder.hosted_payment_data.offer_to_save_card else "0"
+            )
+            request["PAYER_EXIST"] = encoder(
+                "1" if builder.hosted_payment_data.customer_exists else "0"
+            )
 
             if self.hosted_payment_config.display_saved_cards:
-                request['PAYER_REF'] = encoder(
-                    builder.hosted_payment_data.customer_key)
+                request["PAYER_REF"] = encoder(builder.hosted_payment_data.customer_key)
 
-            request['PMT_REF'] = encoder(
-                builder.hosted_payment_data.payment_key)
-            request['PROD_ID'] = encoder(
-                builder.hosted_payment_data.product_id)
+            request["PMT_REF"] = encoder(builder.hosted_payment_data.payment_key)
+            request["PROD_ID"] = encoder(builder.hosted_payment_data.product_id)
 
         if builder.shipping_address is not None:
-            request['SHIPPING_CODE'] = encoder(
-                builder.shipping_address.postal_code)
-            request['SHIPPING_CO'] = encoder(builder.shipping_address.country)
+            request["SHIPPING_CODE"] = encoder(builder.shipping_address.postal_code)
+            request["SHIPPING_CO"] = encoder(builder.shipping_address.country)
 
         if builder.billing_address is not None:
-            request['BILLING_CODE'] = encoder(
-                builder.billing_address.postal_code)
-            request['BILLING_CO'] = encoder(builder.billing_address.country)
+            request["BILLING_CODE"] = encoder(builder.billing_address.postal_code)
+            request["BILLING_CO"] = encoder(builder.billing_address.country)
 
-        request['CUST_NUM'] = encoder(builder.customer_id)
-        request['VAR_REF'] = encoder(builder.client_transaction_id)
-        request['HPP_LANG'] = encoder(self.hosted_payment_config.language)
-        request['MERCHANT_RESPONSE_URL'] = encoder(
-            self.hosted_payment_config.response_url)
-        request['CARD_PAYMENT_BUTTON'] = encoder(
-            self.hosted_payment_config.payment_button_text)
+        request["CUST_NUM"] = encoder(builder.customer_id)
+        request["VAR_REF"] = encoder(builder.client_transaction_id)
+        request["HPP_LANG"] = encoder(self.hosted_payment_config.language)
+        request["MERCHANT_RESPONSE_URL"] = encoder(
+            self.hosted_payment_config.response_url
+        )
+        request["CARD_PAYMENT_BUTTON"] = encoder(
+            self.hosted_payment_config.payment_button_text
+        )
 
         if self.hosted_payment_config.card_storage_enabled is not None:
-            request['CARD_STORAGE_ENABLE'] = encoder('1' \
-                if self.hosted_payment_config.card_storage_enabled \
-                else '0')
+            request["CARD_STORAGE_ENABLE"] = encoder(
+                "1" if self.hosted_payment_config.card_storage_enabled else "0"
+            )
 
         if builder.transaction_type == TransactionType.Verify:
-            request['VALIDATE_CARD_ONLY'] = encoder('1' \
-                if builder.transaction_type == TransactionType.Verify \
-                else '0')
+            request["VALIDATE_CARD_ONLY"] = encoder(
+                "1" if builder.transaction_type == TransactionType.Verify else "0"
+            )
 
         if self.hosted_payment_config.fraud_filter_mode != FraudFilterMode.NONE:
-            request['HPP_FRAUDFILTER_MODE'] = encoder(
-                self.hosted_payment_config.fraud_filter_mode)
+            request["HPP_FRAUDFILTER_MODE"] = encoder(
+                self.hosted_payment_config.fraud_filter_mode
+            )
 
         if builder.recurring_type is not None or builder.recurring_sequence is not None:
-            request['RECURRING_TYPE'] = encoder(builder.recurring_type.lower())
-            request['RECURRING_SEQUENCE'] = encoder(
-                builder.recurring_sequence.lower())
+            request["RECURRING_TYPE"] = encoder(builder.recurring_type.lower())
+            request["RECURRING_SEQUENCE"] = encoder(builder.recurring_sequence.lower())
 
-        request['HPP_VERSION'] = encoder(self.hosted_payment_config.version)
-        request['HPP_POST_DIMENSIONS'] = encoder(
-            self.hosted_payment_config.post_dimensions)
-        request['HPP_POST_RESPONSE'] = encoder(
-            self.hosted_payment_config.post_response)
+        request["HPP_VERSION"] = encoder(self.hosted_payment_config.version)
+        request["HPP_POST_DIMENSIONS"] = encoder(
+            self.hosted_payment_config.post_dimensions
+        )
+        request["HPP_POST_RESPONSE"] = encoder(self.hosted_payment_config.post_response)
 
         to_hash = [
             str(timestamp),
             str(self.merchant_id),
             str(order_id),
-            str(self.format_amount(builder.amount)) if builder.amount else '',
-            str(builder.currency)
+            str(self.format_amount(builder.amount)) if builder.amount else "",
+            str(builder.currency),
         ]
 
-        if (self.hosted_payment_config.card_storage_enabled
-                or (builder.hosted_payment_data is not None
-                    and builder.hosted_payment_data.offer_to_save_card)
-                or self.hosted_payment_config.display_saved_cards):
+        if (
+            self.hosted_payment_config.card_storage_enabled
+            or (
+                builder.hosted_payment_data is not None
+                and builder.hosted_payment_data.offer_to_save_card
+            )
+            or self.hosted_payment_config.display_saved_cards
+        ):
             to_hash.append(str(builder.hosted_payment_data.customer_key))
             to_hash.append(str(builder.hosted_payment_data.payment_key))
 
         if self.hosted_payment_config.fraud_filter_mode != FraudFilterMode.NONE:
             to_hash.append(str(self.hosted_payment_config.fraud_filter_mode))
 
-        request['SHA1HASH'] = GenerationUtils.generate_hash(
-            self.shared_secret, to_hash)
+        request["SHA1HASH"] = GenerationUtils.generate_hash(self.shared_secret, to_hash)
         return jsonpickle.encode(request)
 
     def manage_transaction(self, builder):
         timestamp = GenerationUtils.generate_timestamp()
-        order_id = builder.order_id \
-            if builder.order_id \
+        order_id = (
+            builder.order_id
+            if builder.order_id
             else GenerationUtils.generate_order_id()
+        )
         request_type = self._map_manage_request_type(builder)
 
-        request = et.Element('request', {
-            'timestamp': str(timestamp),
-            'type': str(request_type),
-        })
+        request = et.Element(
+            "request",
+            {
+                "timestamp": str(timestamp),
+                "type": str(request_type),
+            },
+        )
 
-        et.SubElement(request, 'merchantid').text = self.merchant_id
-        et.SubElement(request, 'account').text = self.account_id
-        et.SubElement(request, 'channel').text = self.channel
-        et.SubElement(request, 'orderid').text = order_id
-        et.SubElement(request, 'pasref').text = builder.transaction_id
+        et.SubElement(request, "merchantid").text = self.merchant_id
+        et.SubElement(request, "account").text = self.account_id
+        et.SubElement(request, "channel").text = self.channel
+        et.SubElement(request, "orderid").text = order_id
+        et.SubElement(request, "pasref").text = builder.transaction_id
 
         if builder.amount is not None:
             atts = {}
             if builder.currency:
-                atts['currency'] = builder.currency
-            et.SubElement(request, 'amount', atts).text = str(
-                self.format_amount(builder.amount))
+                atts["currency"] = builder.currency
+            et.SubElement(request, "amount", atts).text = str(
+                self.format_amount(builder.amount)
+            )
         elif builder.transaction_type == TransactionType.Capture:
-            raise BuilderException('Amount cannot be null for Capture.')
+            raise BuilderException("Amount cannot be null for Capture.")
 
         if builder.transaction_type == TransactionType.VerifySignature:
-            et.SubElement(
-                request, 'payres').text = builder.payer_authentication_response
+            et.SubElement(request, "payres").text = (
+                builder.payer_authentication_response
+            )
 
         if builder.transaction_type == TransactionType.Refund:
-            et.SubElement(request,
-                          'authcode').text = builder.authorization_code
+            et.SubElement(request, "authcode").text = builder.authorization_code
             refund_hash = GenerationUtils.generate_hash(self.rebate_password)
-            et.SubElement(request, 'refundhash').text = \
-                refund_hash if refund_hash else ''
+            et.SubElement(request, "refundhash").text = (
+                refund_hash if refund_hash else ""
+            )
 
         if builder.reason_code is not None:
-            et.SubElement(request, 'reasoncode').text = builder.reason_code
+            et.SubElement(request, "reasoncode").text = builder.reason_code
 
         # TODO: needs to be multiple
         if builder.description is not None:
-            comments = et.SubElement(request, 'comments')
-            et.SubElement(comments, 'comment', {
-                'id': '1'
-            }).text = builder.description
+            comments = et.SubElement(request, "comments")
+            et.SubElement(comments, "comment", {"id": "1"}).text = builder.description
 
         to_hash = [
             str(timestamp),
             str(self.merchant_id),
             str(order_id),
-            str(self.format_amount(builder.amount)) if builder.amount else '',
-            str(builder.currency) if builder.currency else '', ''
+            str(self.format_amount(builder.amount)) if builder.amount else "",
+            str(builder.currency) if builder.currency else "",
+            "",
         ]
-        et.SubElement(request,
-                      'sha1hash').text = GenerationUtils.generate_hash(
-                          self.shared_secret, to_hash)
+        et.SubElement(request, "sha1hash").text = GenerationUtils.generate_hash(
+            self.shared_secret, to_hash
+        )
 
         response = self.do_transaction(et.tostring(request))
-        return self._map_response(response,
-                                  self._map_accepted_codes(request_type))
+        return self._map_response(response, self._map_accepted_codes(request_type))
 
     def process_report(self, _builder):
         raise UnsupportedTransactionException(
-            'Reporting functionality is not supported through this gateway.')
+            "Reporting functionality is not supported through this gateway."
+        )
 
     def process_recurring(self, builder):
         timestamp = GenerationUtils.generate_timestamp()
-        order_id = builder.order_id \
-            if builder.order_id \
+        order_id = (
+            builder.order_id
+            if builder.order_id
             else GenerationUtils.generate_order_id()
+        )
 
         request = et.Element(
-            'request', {
-                'timestamp': str(timestamp),
-                'type': self._map_recurring_request_type(builder),
-            })
+            "request",
+            {
+                "timestamp": str(timestamp),
+                "type": self._map_recurring_request_type(builder),
+            },
+        )
 
-        et.SubElement(request, 'merchantid').text = self.merchant_id
-        et.SubElement(request, 'account').text = self.account_id
-        et.SubElement(request, 'orderid').text = order_id
+        et.SubElement(request, "merchantid").text = self.merchant_id
+        et.SubElement(request, "account").text = self.account_id
+        et.SubElement(request, "orderid").text = order_id
 
-        if (builder.transaction_type == TransactionType.Create
-                or builder.transaction_type == TransactionType.Edit):
+        if (
+            builder.transaction_type == TransactionType.Create
+            or builder.transaction_type == TransactionType.Edit
+        ):
             if isinstance(builder.entity, Customer):
                 customer = builder.entity
                 request.append(self._build_customer(customer))
                 to_hash = [
                     str(timestamp),
                     str(self.merchant_id),
-                    str(order_id), '', '',
-                    str(customer.key)
+                    str(order_id),
+                    "",
+                    "",
+                    str(customer.key),
                 ]
-                et.SubElement(request,
-                              'sha1hash').text = GenerationUtils.generate_hash(
-                                  self.shared_secret, to_hash)
+                et.SubElement(request, "sha1hash").text = GenerationUtils.generate_hash(
+                    self.shared_secret, to_hash
+                )
 
             if isinstance(builder.entity, RecurringPaymentMethod):
                 payment = builder.entity
-                card_element = et.SubElement(request, 'card')
+                card_element = et.SubElement(request, "card")
 
-                et.SubElement(
-                    card_element,
-                    'ref').text = payment.key if payment.key else payment.id
-                et.SubElement(card_element,
-                              'payerref').text = payment.customer_key
+                et.SubElement(card_element, "ref").text = (
+                    payment.key if payment.key else payment.id
+                )
+                et.SubElement(card_element, "payerref").text = payment.customer_key
 
                 if payment.payment_method is not None:
                     card = payment.payment_method
-                    et.SubElement(card_element, 'number').text = card.number
-                    et.SubElement(card_element,
-                                  'expdate').text = card.short_expiry
-                    et.SubElement(card_element,
-                                  'chname').text = card.card_holder_name
-                    et.SubElement(card_element, 'type').text = card.card_type
+                    et.SubElement(card_element, "number").text = card.number
+                    et.SubElement(card_element, "expdate").text = card.short_expiry
+                    et.SubElement(card_element, "chname").text = card.card_holder_name
+                    et.SubElement(card_element, "type").text = card.card_type
 
                     to_hash = []
                     if builder.transaction_type == TransactionType.Create:
                         to_hash = [
                             str(timestamp),
                             str(self.merchant_id),
-                            str(order_id), '', '',
+                            str(order_id),
+                            "",
+                            "",
                             str(payment.customer_key),
                             str(card.card_holder_name),
-                            str(card.number)
+                            str(card.number),
                         ]
                     else:
                         to_hash = [
@@ -2039,33 +2308,31 @@ class RealexConnector(XmlGateway):
                             str(payment.customer_key),
                             str(payment.key if payment.key else payment.id),
                             str(card.short_expiry),
-                            str(card.number if card.number else '')
+                            str(card.number if card.number else ""),
                         ]
 
-                    et.SubElement(
-                        request,
-                        'sha1hash').text = GenerationUtils.generate_hash(
-                            self.shared_secret, to_hash)
+                    et.SubElement(request, "sha1hash").text = (
+                        GenerationUtils.generate_hash(self.shared_secret, to_hash)
+                    )
 
         elif builder.transaction_type == TransactionType.Delete:
             if isinstance(builder.entity, RecurringPaymentMethod):
                 payment = builder.entity
-                card_element = et.SubElement(request, 'card')
-                et.SubElement(
-                    card_element,
-                    'ref').text = payment.key if payment.key else payment.id
-                et.SubElement(card_element,
-                              'payerref').text = payment.customer_key
+                card_element = et.SubElement(request, "card")
+                et.SubElement(card_element, "ref").text = (
+                    payment.key if payment.key else payment.id
+                )
+                et.SubElement(card_element, "payerref").text = payment.customer_key
 
                 to_hash = [
                     str(timestamp),
                     str(self.merchant_id),
                     str(payment.customer_key),
-                    str(payment.key if payment.key else payment.id)
+                    str(payment.key if payment.key else payment.id),
                 ]
-                et.SubElement(request,
-                              'sha1hash').text = GenerationUtils.generate_hash(
-                                  self.shared_secret, to_hash)
+                et.SubElement(request, "sha1hash").text = GenerationUtils.generate_hash(
+                    self.shared_secret, to_hash
+                )
 
         response = self.do_transaction(et.tostring(request))
         return self._map_recurring_response(response, builder)
@@ -2079,36 +2346,36 @@ class RealexConnector(XmlGateway):
 
         if trans in [TransactionType.Sale, TransactionType.Auth]:
             if not isinstance(payment, Credit):
-                return 'receipt-in'
+                return "receipt-in"
 
             if builder.transaction_modifier == TransactionModifier.Offline:
                 if payment is not None:
-                    return 'manual'
+                    return "manual"
 
-                return 'offline'
+                return "offline"
 
-            return 'auth'
+            return "auth"
 
         if trans == TransactionType.Capture:
-            return 'settle'
+            return "settle"
 
         if trans == TransactionType.Verify:
             if isinstance(payment, Credit):
-                return 'otb'
+                return "otb"
 
             if builder.transaction_modifier == TransactionModifier.Secure3D:
-                return 'realvault-ed5-verify-enrolled'
+                return "realvault-ed5-verify-enrolled"
 
-            return 'receipt-in-otb'
+            return "receipt-in-otb"
 
         if trans == TransactionType.Refund:
             if isinstance(payment, Credit):
-                return 'credit'
+                return "credit"
 
-            return 'payment-out'
+            return "payment-out"
 
         if trans == TransactionType.VerifyEnrolled:
-            return '3ds-verifyenrolled'
+            return "3ds-verifyenrolled"
 
         raise UnsupportedTransactionException()
 
@@ -2116,24 +2383,24 @@ class RealexConnector(XmlGateway):
         trans = builder.transaction_type
 
         if trans == TransactionType.Capture:
-            return 'settle'
+            return "settle"
 
         if trans == TransactionType.Hold:
-            return 'hold'
+            return "hold"
 
         if trans == TransactionType.Refund:
-            return 'rebate'
+            return "rebate"
 
         if trans == TransactionType.Release:
-            return 'release'
+            return "release"
 
         if trans in [TransactionType.Void, TransactionType.Reversal]:
-            return 'void'
+            return "void"
 
         if trans == TransactionType.VerifySignature:
-            return '3ds-verifysig'
+            return "3ds-verifysig"
 
-        return 'unknown'
+        return "unknown"
 
     def _map_recurring_request_type(self, builder):
         entity = builder.entity
@@ -2141,91 +2408,91 @@ class RealexConnector(XmlGateway):
 
         if trans == TransactionType.Create:
             if isinstance(entity, Customer):
-                return 'payer-new'
+                return "payer-new"
 
             if isinstance(entity, RecurringPaymentMethod):
-                return 'card-new'
+                return "card-new"
 
             raise UnsupportedTransactionException()
 
         if trans == TransactionType.Edit:
             if isinstance(entity, Customer):
-                return 'payer-edit'
+                return "payer-edit"
 
             if isinstance(entity, RecurringPaymentMethod):
-                return 'card-update-card'
+                return "card-update-card"
 
             raise UnsupportedTransactionException()
 
         if trans == TransactionType.Delete:
             if isinstance(entity, RecurringPaymentMethod):
-                return 'card-cancel-card'
+                return "card-cancel-card"
 
             raise UnsupportedTransactionException()
 
         raise UnsupportedTransactionException()
 
     def _map_response(self, response, accepted_codes=None):
-        root = xmltodict.parse(response)['response']
+        root = xmltodict.parse(response)["response"]
 
         self._check_response(root, accepted_codes)
 
         result = Transaction()
 
-        if 'result' in root:
-            result.response_code = root['result']
+        if "result" in root:
+            result.response_code = root["result"]
 
-        if 'message' in root:
-            result.response_message = root['message']
+        if "message" in root:
+            result.response_message = root["message"]
 
-        if 'cvnresult' in root:
-            result.cvn_response_code = root['cvnresult']
+        if "cvnresult" in root:
+            result.cvn_response_code = root["cvnresult"]
 
-        if 'avspostcoderesponse' in root:
-            result.avs_response_code = root['avspostcoderesponse']
+        if "avspostcoderesponse" in root:
+            result.avs_response_code = root["avspostcoderesponse"]
 
-        if '@timestamp' in root:
-            result.timestamp = root['@timestamp']
+        if "@timestamp" in root:
+            result.timestamp = root["@timestamp"]
 
         result.transaction_reference = TransactionReference()
 
-        if 'authcode' in root:
-            result.transaction_reference.auth_code = root['authcode']
+        if "authcode" in root:
+            result.transaction_reference.auth_code = root["authcode"]
 
-        if 'orderid' in root:
-            result.transaction_reference.order_id = root['orderid']
+        if "orderid" in root:
+            result.transaction_reference.order_id = root["orderid"]
 
         result.transaction_reference.payment_method_type = PaymentMethodType.Credit
 
-        if 'pasref' in root:
-            result.transaction_reference.transaction_id = root['pasref']
+        if "pasref" in root:
+            result.transaction_reference.transaction_id = root["pasref"]
 
-        if 'enrolled' in root:
+        if "enrolled" in root:
             result.three_d_secure = ThreeDSecure()
-            result.three_d_secure.enrolled = root['enrolled']
-            result.three_d_secure.payer_authentication_response = root['pareq']
-            result.three_d_secure.xid = root['xid']
-            result.three_d_secure.issuer_acs_url = root['url']
+            result.three_d_secure.enrolled = root["enrolled"]
+            result.three_d_secure.payer_authentication_response = root["pareq"]
+            result.three_d_secure.xid = root["xid"]
+            result.three_d_secure.issuer_acs_url = root["url"]
 
-        if 'threedsecure' in root:
+        if "threedsecure" in root:
             result.three_d_secure = ThreeDSecure()
-            result.three_d_secure.status = root['status']
-            result.three_d_secure.xid = root['xid']
-            result.three_d_secure.cavv = root['cavv']
+            result.three_d_secure.status = root["status"]
+            result.three_d_secure.xid = root["xid"]
+            result.three_d_secure.cavv = root["cavv"]
 
-            if 'eci' in root and root['eci'] != '':
-                result.three_d_secure.eci = root['eci']
+            if "eci" in root and root["eci"] != "":
+                result.three_d_secure.eci = root["eci"]
 
-            if 'algorithm' in root and root['algorithm'] != '':
-                result.three_d_secure.algorithm = root['algorithm']
+            if "algorithm" in root and root["algorithm"] != "":
+                result.three_d_secure.algorithm = root["algorithm"]
 
         return result
 
     def _map_accepted_codes(self, request_type):
-        if request_type in ['3ds-verifysig', '3ds-verifyenrolled']:
-            return ['00', '110']
+        if request_type in ["3ds-verifysig", "3ds-verifyenrolled"]:
+            return ["00", "110"]
 
-        return ['00']
+        return ["00"]
 
     def _map_recurring_response(self, response, builder):
         root = xmltodict.parse(response)
@@ -2236,19 +2503,22 @@ class RealexConnector(XmlGateway):
 
     def _check_response(self, root, accepted_codes=None):
         if accepted_codes is None:
-            accepted_codes = ['00']
+            accepted_codes = ["00"]
 
-        if 'response' in root:
-            root = root['response']
+        if "response" in root:
+            root = root["response"]
 
-        response_code = root['result']
-        response_message = root['message']
+        response_code = root["result"]
+        response_message = root["message"]
 
         if response_code not in accepted_codes:
             raise GatewayException(
-                'Unexpected Gateway Response: {} - {}'.format(
-                    response_code,
-                    response_message), response_code, response_message)
+                "Unexpected Gateway Response: {} - {}".format(
+                    response_code, response_message
+                ),
+                response_code,
+                response_message,
+            )
 
     @staticmethod
     def _build_address(address):
@@ -2257,58 +2527,58 @@ class RealexConnector(XmlGateway):
 
         code = address.postal_code
 
-        if code is not None and code != '' and '|' not in code:
-            code = '{}|{}'.format(code, address.street_address_1)
-            if address.country == 'GB':
-                code = '{}|{}'.format(
-                    re.sub('[^0-9]', '', address.postal_code),
-                    re.sub('[^0-9]', '', address.street_address_1))
+        if code is not None and code != "" and "|" not in code:
+            code = "{}|{}".format(code, address.street_address_1)
+            if address.country == "GB":
+                code = "{}|{}".format(
+                    re.sub("[^0-9]", "", address.postal_code),
+                    re.sub("[^0-9]", "", address.street_address_1),
+                )
 
-        address_node = et.Element('address', {
-            'type': 'billing' \
-                if address.address_type == AddressType.Billing \
-                else 'shipping'
-        })
-        et.SubElement(address_node, 'code').text = code
-        et.SubElement(address_node, 'country').text = address.country
+        address_node = et.Element(
+            "address",
+            {
+                "type": (
+                    "billing"
+                    if address.address_type == AddressType.Billing
+                    else "shipping"
+                )
+            },
+        )
+        et.SubElement(address_node, "code").text = code
+        et.SubElement(address_node, "country").text = address.country
 
         return address_node
 
     @staticmethod
     def _build_customer(customer):
-        payer = et.Element('payer')
+        payer = et.Element("payer")
         payer.set(
-            'ref',
-            customer.key \
-                if customer.key \
-                else GenerationUtils.generate_recurring_key()
+            "ref",
+            customer.key if customer.key else GenerationUtils.generate_recurring_key(),
         )
 
-        et.SubElement(payer, 'title').text = customer.title
-        et.SubElement(payer, 'firstname').text = customer.first_name
-        et.SubElement(payer, 'surname').text = customer.last_name
-        et.SubElement(payer, 'company').text = customer.company
+        et.SubElement(payer, "title").text = customer.title
+        et.SubElement(payer, "firstname").text = customer.first_name
+        et.SubElement(payer, "surname").text = customer.last_name
+        et.SubElement(payer, "company").text = customer.company
 
         if customer.address is not None:
-            address = et.SubElement(payer, 'address')
+            address = et.SubElement(payer, "address")
 
-            et.SubElement(address,
-                          "line1").text = customer.address.street_address_1
-            et.SubElement(address,
-                          "line2").text = customer.address.street_address_2
-            et.SubElement(address,
-                          "line3").text = customer.address.street_address_3
+            et.SubElement(address, "line1").text = customer.address.street_address_1
+            et.SubElement(address, "line2").text = customer.address.street_address_2
+            et.SubElement(address, "line3").text = customer.address.street_address_3
             et.SubElement(address, "city").text = customer.address.city
             et.SubElement(address, "county").text = customer.address.province
-            et.SubElement(address,
-                          "postcode").text = customer.address.postal_code
+            et.SubElement(address, "postcode").text = customer.address.postal_code
 
-            country = et.SubElement(address, 'country')
+            country = et.SubElement(address, "country")
             country.text = customer.address.country
             if country is not None:
-                country.set('code', str(customer.address.country_code))
+                country.set("code", str(customer.address.country_code))
 
-        phone = et.SubElement(payer, 'phonenumbers')
+        phone = et.SubElement(payer, "phonenumbers")
         et.SubElement(phone, "home").text = customer.home_phone
         et.SubElement(phone, "work").text = customer.work_phone
         et.SubElement(phone, "fax").text = customer.fax
