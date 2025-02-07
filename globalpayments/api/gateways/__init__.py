@@ -808,6 +808,12 @@ class PorticoConnector(XmlGateway):
                             "Y" if builder.allow_partial_auth else "N"
                         )
 
+        if builder.healthcare is not None:
+            auto_substantiation = et.SubElement(block1, 'AutoSubstantiation')
+            first_addl_amt_info = et.SubElement(auto_substantiation, 'FirstAdditionalAmtInfo')
+            et.SubElement(first_addl_amt_info, 'AmtType').text = 'TOTAL_HEALTHCARE_AMT'
+            et.SubElement(first_addl_amt_info, 'Amt').text = builder.healthcare
+            
         if builder.amount is not None:
             et.SubElement(block1, "Amt").text = str(builder.amount)
 

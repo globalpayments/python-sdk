@@ -75,6 +75,32 @@ except ApiException as e:
     // handle errors
 ```
 
+#### Process a Payment with Healthcare Amount Example
+
+This passes on to the issuing bank what part of the total payment amount was used for a healthcare purchase. This allows the use of FSA (Flex) cards. This is currently only supported with users of the Portico Gateway. 
+
+```python
+card = CreditCardData()
+card.number = '4111111111111111'
+card.exp_month = '12'
+card.exp_year = '2025'
+card.cvn = '123'
+card.card_holder_name = 'Joe Smith'
+
+try:
+    response = card.charge(129.99) \
+        .with_currency("EUR") \
+        .with_healthcare_amount(100.00) \
+        .execute()
+
+    result = response.response_code # 00 == Success
+    message = response.response_message # [ test system ] AUTHORISED
+
+except ApiException as e:
+    // handle errors
+```
+
+
 #### Test Card Data
 
 Name        | Number           | Exp Month | Exp Year | CVN
