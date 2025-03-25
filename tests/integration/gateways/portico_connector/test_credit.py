@@ -4,7 +4,11 @@ Test Credit
 
 import unittest
 from globalpayments.api import PorticoConfig, ServicesContainer
-from globalpayments.api.entities import EncryptionData, Transaction
+from globalpayments.api.entities import EncryptionData, Transaction, ThreeDSecure
+from globalpayments.api.entities.enums import (
+    ThreeDSecureVersion,
+    StoredCredentialInitiator,
+)
 from globalpayments.api.payment_methods import CreditCardData, CreditTrackData
 
 
@@ -445,3 +449,65 @@ class IntegrationGatewaysPorticoConnectorCreditTests(unittest.TestCase):
         )
         self.assertNotEqual(None, response)
         self.assertEqual("00", response.response_code)
+
+    def test_3dSecure_v1(self):
+        ecom = ThreeDSecure()
+        ecom.cavv = "XXXXf98AAajXbDRg3HSUMAACAAA="
+        ecom.xid = "0l35fwh1sys3ojzyxelu4ddhmnu5zfke5vst"
+        ecom.eci = 5
+        ecom.version = ThreeDSecureVersion.One
+        self.card.three_d_secure = ecom
+        response = (
+            self.card.charge(15)
+            .with_currency("USD")
+            .with_invoice_number("1234567890")
+            .with_allow_duplicates(True)
+            .execute()
+        )
+
+        self.assertNotEqual(None, response)
+        self.assertEqual("00", response.response_code)
+
+    def test_3dSecure_v2(self):
+        ecom = ThreeDSecure()
+        ecom.cavv = "XXXXf98AAajXbDRg3HSUMAACAAA="
+        ecom.xid = "0l35fwh1sys3ojzyxelu4ddhmnu5zfke5vst"
+        ecom.eci = 5
+        ecom.version = ThreeDSecureVersion.Two
+        self.card.three_d_secure = ecom
+        response = (
+            self.card.charge(15)
+            .with_currency("USD")
+            .with_invoice_number("1234567890")
+            .with_allow_duplicates(True)
+            .execute()
+        )
+
+        self.assertNotEqual(None, response)
+        self.assertEqual("00", response.response_code)
+
+    def test_credit_sale_with_cof(self):
+        # First transaction - initial card holder initiated transaction
+        response = (
+            self.card.charge(15)
+            .with_currency("USD")
+            .with_allow_duplicates(True)
+            .with_card_brand_storage(StoredCredentialInitiator.CardHolder)
+            .execute()
+        )
+        self.assertNotEqual(None, response)
+        self.assertEqual("00", response.response_code)
+        self.assertNotEqual(None, response.card_brand_transaction_id)
+
+        # Second transaction - merchant initiated transaction using stored credentials
+        cof_response = (
+            self.card.charge(15)
+            .with_currency("USD")
+            .with_allow_duplicates(True)
+            .with_card_brand_storage(
+                StoredCredentialInitiator.Merchant, response.card_brand_transaction_id
+            )
+            .execute()
+        )
+        self.assertNotEqual(None, cof_response)
+        self.assertEqual("00", cof_response.response_code)

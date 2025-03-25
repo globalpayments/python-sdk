@@ -31,6 +31,7 @@ class Transaction(object):
     batch_summary = None
     card_type = None
     card_last_4 = None
+    card_brand_transaction_id = None
     cavv_response_code = None
     commercial_indicator = None
     cvn_response_code = None

@@ -13,6 +13,7 @@ from globalpayments.api.entities.enums import (
     ReportType,
     TransactionModifier,
     TransactionType,
+    StoredCredentialInitiator,
 )
 from globalpayments.api.entities.exceptions import BuilderException
 from globalpayments.api.payment_methods import EBTCardData
@@ -104,6 +105,8 @@ class AuthorizationBuilder(TransactionBuilder):
     schedule_id = None
     shipping_address = None
     timestamp = None
+    transaction_initiator = None
+    card_brand_transaction_id = None
 
     def with_address(self, address, address_type=AddressType.Billing):
         if not isinstance(address, Address):
@@ -113,6 +116,10 @@ class AuthorizationBuilder(TransactionBuilder):
             self.billing_address = address
         else:
             self.shipping_address = address
+        return self
+
+    def with_invoice_number(self, invoice_number):
+        self.invoice_number = invoice_number
         return self
 
     def with_alias(self, action, value):
@@ -137,6 +144,14 @@ class AuthorizationBuilder(TransactionBuilder):
                 self.payment_method.client_transaction_id = value
         else:
             self.client_transaction_id = value
+        return self
+
+    def with_card_brand_storage(
+        self, transaction_initiator: StoredCredentialInitiator, value=None
+    ):
+        self.transaction_initiator = transaction_initiator
+        if value is not None:
+            self.card_brand_transaction_id = value
         return self
 
     def with_commercial_request(self, value):

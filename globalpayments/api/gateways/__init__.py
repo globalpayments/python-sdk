@@ -21,6 +21,7 @@ from globalpayments.api.entities import (
     ThreeDSecure,
     Transaction,
     TransactionSummary,
+    ECommerceInfo,
 )
 from globalpayments.api.entities.enums import (
     AccountType,
@@ -37,6 +38,7 @@ from globalpayments.api.entities.enums import (
     SecCode,
     TransactionType,
     TransactionModifier,
+    ThreeDSecureVersion,
 )
 from globalpayments.api.entities.exceptions import (
     ApiException,
@@ -906,6 +908,14 @@ class PorticoConnector(XmlGateway):
             manual_entry = et.SubElement(
                 card_data, "TokenData" if has_token else "ManualEntry"
             )
+            if self._should_include_credential_on_file(builder) and (
+                hasattr(builder, "card_brand_transaction_id")
+                and builder.card_brand_transaction_id
+                or hasattr(builder, "transaction_initiator")
+                and builder.transaction_initiator
+            ):
+                block1.append(self._hydrate_credential_on_file(builder))
+
             et.SubElement(
                 manual_entry, "TokenValue" if has_token else "CardNbr"
             ).text = (token_value or card.number)
@@ -929,7 +939,9 @@ class PorticoConnector(XmlGateway):
             if isinstance(card, CreditCardData):
                 secure_ecom = card.three_d_secure
 
-                if secure_ecom is not None:
+                if (secure_ecom is not None) and (
+                    isinstance(secure_ecom, ECommerceInfo)
+                ):
                     secure_ecommerce = et.SubElement(block1, "SecureECommerce")
                     et.SubElement(secure_ecommerce, "PaymentDataSource").text = (
                         secure_ecom.payment_data_source
@@ -944,6 +956,22 @@ class PorticoConnector(XmlGateway):
                         secure_ecom.eci
                     )
                     et.SubElement(secure_ecommerce, "XID").text = secure_ecom.xid
+                elif (card.three_d_secure is not None) and (
+                    isinstance(card.three_d_secure, ThreeDSecure)
+                ):
+                    mpi = et.SubElement(block1, "Secure3D")
+                    et.SubElement(mpi, "Version").text = (
+                        "2"
+                        if card.three_d_secure.version == ThreeDSecureVersion.Two
+                        else "1"
+                    )
+                    et.SubElement(mpi, "AuthenticationValue").text = (
+                        card.three_d_secure.cavv
+                    )
+                    et.SubElement(mpi, "DirectoryServerTxnId").text = (
+                        card.three_d_secure.xid
+                    )
+                    et.SubElement(mpi, "ECI").text = str(card.three_d_secure.eci)
 
             if builder.transaction_modifier == TransactionModifier.Recurring:
                 recurring = et.SubElement(block1, "RecurringData")
@@ -1109,6 +1137,15 @@ class PorticoConnector(XmlGateway):
                 et.SubElement(data, "ExpMonth").text = str(card.exp_month)
                 et.SubElement(data, "ExpYear").text = str(card.exp_year)
                 et.SubElement(data, "CVV2").text = str(card.cvn)
+
+                # Add the credential on file logic
+                if self._should_include_credential_on_file(builder) and (
+                    hasattr(builder, "card_brand_transaction_id")
+                    and builder.card_brand_transaction_id
+                    or hasattr(builder, "transaction_initiator")
+                    and builder.transaction_initiator
+                ):
+                    block1.append(self._hydrate_credential_on_file(builder))
 
             # recurring data
             recurring = et.SubElement(block1, "RecurringData")
@@ -1378,6 +1415,39 @@ class PorticoConnector(XmlGateway):
 
         return et.tostring(envelope)
 
+    def _should_include_credential_on_file(self, builder):
+
+        valid_transaction_types = [
+            TransactionType.Auth,
+            TransactionType.Refund,
+            TransactionType.Sale,
+            TransactionType.Verify,
+        ]
+
+        return builder.transaction_type in valid_transaction_types
+
+    def _hydrate_credential_on_file(self, auth_builder):
+
+        cof = et.Element("CardOnFileData")
+
+        if (
+            hasattr(auth_builder, "transaction_initiator")
+            and auth_builder.transaction_initiator
+        ):
+            et.SubElement(cof, "CardOnFile").text = (
+                auth_builder.transaction_initiator.value
+            )
+
+        if (
+            hasattr(auth_builder, "card_brand_transaction_id")
+            and auth_builder.card_brand_transaction_id
+        ):
+            et.SubElement(cof, "CardBrandTxnId").text = (
+                auth_builder.card_brand_transaction_id
+            )
+
+        return cof
+
     def _map_response(self, raw_response, payment_method):
         result = Transaction()
 
@@ -1460,6 +1530,8 @@ class PorticoConnector(XmlGateway):
             result.transaction_descriptor = str(item["TxnDescriptor"])
         if "HostRspDT" in item:
             result.host_response_date = str(item["HostRspDT"])
+        if "CardBrandTxnId" in item:
+            result.card_brand_transaction_id = str(item["CardBrandTxnId"])
 
         if payment_method is not None:
             result.transaction_reference = TransactionReference()
@@ -2001,7 +2073,6 @@ class RealexConnector(XmlGateway):
 
         # et.SubElement(request, 'mobile')
         # et.SubElement(request, 'token').text = token
-
         response = self.do_transaction(et.tostring(request))
         return self._map_response(response, self._map_accepted_codes(request_type))
 

@@ -4,8 +4,17 @@ Test runner for GlobalPayments.Api
 
 from unittest import TextTestRunner, TestLoader, TestSuite
 
-from tests.integration.gateways.portico_connector import test_credit, test_debit, test_ach, test_ebt, test_ecommerce, \
-    test_gift, test_recurring, test_reporting, test_token_management
+from tests.integration.gateways.portico_connector import (
+    test_credit,
+    test_debit,
+    test_ach,
+    test_ebt,
+    test_ecommerce,
+    test_gift,
+    test_recurring,
+    test_reporting,
+    test_token_management,
+)
 
 
 def run_tests():
@@ -26,7 +35,6 @@ def portico_tests():
 
     # Run all tests in the suite
     TextTestRunner().run(suite)
-
 
 
 if __name__ == "__main__":

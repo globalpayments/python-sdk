@@ -46,8 +46,6 @@ class HostedPaymentConfig(object):
     post_response = None
 
 
-
-
 class GatewayConfig(object):
     """
     Configuration for connecting to a payment gateway
@@ -165,6 +163,7 @@ SERVICE_CONTAINER_INSTANCE = None
 
 class PorticoConfig(GatewayConfig):
     pass
+
 
 class ServicesContainer(object):
     """

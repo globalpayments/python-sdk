@@ -72,6 +72,16 @@ class InquiryType(Enum):
     Points = "POINTS"
 
 
+class StoredCredentialInitiator(Enum):
+    """
+    Card Brand Stored Credentials.  used for COF
+    """
+
+    CardHolder = "C"
+    Merchant = "M"
+    Payer = "Payer"
+
+
 class PaymentMethodType(IntEnum):
     """
     Indicates a payment method type.
@@ -489,3 +499,13 @@ class ReservationProviders(Enum):
     """
 
     FreshTxt = 1
+
+
+class ThreeDSecureVersion(Enum):
+    """
+    Version of 3ds to use
+    """
+
+    One = "One"
+    Two = "Two"
+    Any = "Any"

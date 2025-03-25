@@ -84,21 +84,9 @@ class Credit(object):
         @return: The builder
         """
 
-        currency = None
-        order_id = None
-        if self.three_d_secure is not None:
-            currency = self.three_d_secure.currency
-            order_id = self.three_d_secure.order_id
-
-            if amount is None:
-                amount = self.three_d_secure.amount
-
-        return (
-            gp.api.builders.AuthorizationBuilder(TransactionType.Auth, self)
-            .with_amount(amount)
-            .with_currency(currency)
-            .with_order_id(order_id)
-        )
+        return gp.api.builders.AuthorizationBuilder(
+            TransactionType.Auth, self
+        ).with_amount(amount)
 
     def charge(self, amount=None):
         """
@@ -110,21 +98,9 @@ class Credit(object):
         @return: The builder
         """
 
-        currency = None
-        order_id = None
-        if self.three_d_secure is not None:
-            currency = self.three_d_secure.currency
-            order_id = self.three_d_secure.order_id
-
-            if amount is None:
-                amount = self.three_d_secure.amount
-
-        return (
-            gp.api.builders.AuthorizationBuilder(TransactionType.Sale, self)
-            .with_amount(amount)
-            .with_currency(currency)
-            .with_order_id(order_id)
-        )
+        return gp.api.builders.AuthorizationBuilder(
+            TransactionType.Sale, self
+        ).with_amount(amount)
 
     def balance_inquiry(self, inquiry=None):
         """
