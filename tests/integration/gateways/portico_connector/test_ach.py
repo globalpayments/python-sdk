@@ -3,6 +3,7 @@ Test Check
 """
 
 import unittest
+
 from globalpayments.api import PorticoConfig, ServicesContainer
 from globalpayments.api.entities import Address, Transaction
 from globalpayments.api.entities.enums import (
@@ -21,7 +22,9 @@ class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
     """
 
     config = PorticoConfig()
-    config.secret_api_key = "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"
+    config.secret_api_key = (
+        "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"  # gitleaks:allow
+    )
     config.service_url = "https://cert.api2.heartlandportico.com"
     config.developer_id = "000000"
     config.version_number = "0000"
@@ -82,7 +85,7 @@ class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
     def test_check_crypto_gold_standard(self):
         gold_config = PorticoConfig()
         gold_config.secret_api_key = (
-            "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"
+            "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"  # gitleaks:allow
         )
         gold_config.service_url = "https://cert.api2-c.heartlandportico.com"
 
@@ -101,16 +104,14 @@ class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
     @unittest.skip("No long used...")
     def test_HPS_ACH_SUT(self):
         gold_config = PorticoConfig()
-        gold_config.secret_api_key = (
-            "skapi_cert_McU0AgBkx2EAldEfhhtolMw0RnvahBQAnXFdLYga-Q"  # 650777701408656
-        )
+        gold_config.secret_api_key = "skapi_cert_McU0AgBkx2EAldEfhhtolMw0RnvahBQAnXFdLYga-Q"  # gitleaks:allow  # 650777701408656
         gold_config.service_url = "https://cert.api2.heartlandportico.com"
 
         ServicesContainer.configure(gold_config, "ach_sut")
 
         sut_check = ECheck()
         sut_check.check_name = "fake name"
-        sut_check.token = "supt_ogqgTlwW5lN4cKmiHH7Msh5X"
+        sut_check.token = "supt_ogqgTlwW5lN4cKmiHH7Msh5X"  # gitleaks:allow
         sut_check.account_type = AccountType.Checking
         sut_check.sec_code = SecCode.PPD
 

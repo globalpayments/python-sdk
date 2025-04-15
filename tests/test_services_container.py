@@ -13,7 +13,9 @@ class TestServicesContainer(unittest.TestCase):
     """
 
     config = PorticoConfig()
-    config.secret_api_key = "skapi_cert_MTeSAQAfG1UA9qQDrzl-kz4toXvARyieptFwSKP24w"
+    config.secret_api_key = (
+        "skapi_cert_MTeSAQAfG1UA9qQDrzl-kz4toXvARyieptFwSKP24w"  # gitleaks:allow
+    )
     config.service_url = "https://cert.api2.heartlandportico.com"
 
     ServicesContainer.configure(config)

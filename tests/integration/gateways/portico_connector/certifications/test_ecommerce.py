@@ -27,7 +27,9 @@ class IntegrationGatewaysPorticoConnectorCertificationEcommerceTests(unittest.Te
     BATCH_EMPTY = "Batch close was rejected because no transactions are associated with the currently open batch"
 
     config = PorticoConfig()
-    config.secret_api_key = "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"
+    config.secret_api_key = (
+        "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"  # gitleaks:allow
+    )
     config.service_url = "https://cert.api2.heartlandportico.com"
     config.developer_id = "000000"
     config.version_number = "0000"

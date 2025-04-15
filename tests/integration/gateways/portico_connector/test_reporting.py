@@ -14,7 +14,9 @@ class IntegrationGatewaysPorticoConnectorEbtTests(unittest.TestCase):
     """
 
     config = PorticoConfig()
-    config.secret_api_key = "skapi_cert_MTeSAQAfG1UA9qQDrzl-kz4toXvARyieptFwSKP24w"
+    config.secret_api_key = (
+        "skapi_cert_MTeSAQAfG1UA9qQDrzl-kz4toXvARyieptFwSKP24w"  # gitleaks:allow
+    )
     config.service_url = "https://cert.api2.heartlandportico.com"
     config.developer_id = "000000"
     config.version_number = "0000"
@@ -45,7 +47,7 @@ class IntegrationGatewaysPorticoConnectorEbtTests(unittest.TestCase):
     def test_check_crypto_gold_standard(self):
         gold_config = PorticoConfig()
         gold_config.secret_api_key = (
-            "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"
+            "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"  # gitleaks:allow
         )
         gold_config.service_url = "https://cert.api2-c.heartlandportico.com"
 

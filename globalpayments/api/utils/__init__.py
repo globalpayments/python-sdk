@@ -3,9 +3,9 @@ Utilities for general use in the SDK
 """
 
 import base64
-from datetime import datetime
 import hashlib
 import uuid
+from datetime import datetime
 from xml.dom import minidom
 
 
@@ -204,10 +204,12 @@ class GenerationUtils(object):
         """
 
         if to_hash is None:
-            return hashlib.sha1(shared_secret.encode()).hexdigest()
+            return hashlib.sha1(shared_secret.encode()).hexdigest()  # nosec B324
 
-        first_pass = hashlib.sha1(".".join(to_hash).encode()).hexdigest()
-        return hashlib.sha1((first_pass + "." + shared_secret).encode()).hexdigest()
+        first_pass = hashlib.sha1(".".join(to_hash).encode()).hexdigest()  # nosec B324
+        return hashlib.sha1(
+            (first_pass + "." + shared_secret).encode()
+        ).hexdigest()  # nosec B324
 
     @staticmethod
     def generate_order_id():

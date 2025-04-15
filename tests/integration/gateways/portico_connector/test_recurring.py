@@ -28,7 +28,9 @@ class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
     """
 
     config = PorticoConfig()
-    config.secret_api_key = "skapi_cert_MXvdAQB61V4AkyM-x3EJuY6hkEaCzaMimTWav7mVfQ"
+    config.secret_api_key = (
+        "skapi_cert_MXvdAQB61V4AkyM-x3EJuY6hkEaCzaMimTWav7mVfQ"  # gitleaks:allow
+    )
     config.service_url = "https://cert.api2.heartlandportico.com"
     config.developer_id = "000000"
     config.version_number = "0000"

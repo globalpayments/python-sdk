@@ -14,7 +14,9 @@ class IntegrationGatewaysPorticoConnectorDebitTests(unittest.TestCase):
     """
 
     config = PorticoConfig()
-    config.secret_api_key = "skapi_cert_MaePAQBr-1QAqjfckFC8FTbRTT120bVQUlfVOjgCBw"
+    config.secret_api_key = (
+        "skapi_cert_MaePAQBr-1QAqjfckFC8FTbRTT120bVQUlfVOjgCBw"  # gitleaks:allow
+    )
     config.service_url = "https://cert.api2.heartlandportico.com"
 
     ServicesContainer.configure(config, "recurring")
@@ -28,7 +30,7 @@ class IntegrationGatewaysPorticoConnectorDebitTests(unittest.TestCase):
     def test_check_crypto_gold_standard(self):
         gold_config = PorticoConfig()
         gold_config.secret_api_key = (
-            "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"
+            "skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A"  # gitleaks:allow
         )
         gold_config.service_url = "https://cert.api2-c.heartlandportico.com"
 
