@@ -1,6 +1,12 @@
 # Changelog
 
-## Latest - v2.0.3 (04/09/25):
+## Latest - v2.0.4 (04/24/25):
+
+### Enhancements:
+
+- [Portico] Update API to allow for partial reversals
+
+## v2.0.3 (04/09/25):
 
 ### Enhancements:
 

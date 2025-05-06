@@ -2,15 +2,17 @@
 """
 
 import base64
-import xml.etree.cElementTree as et
+import datetime
 import re
+import xml.etree.cElementTree as et
+from importlib.metadata import version
+
 import certifi
 import jsonpickle
 import urllib3.contrib.pyopenssl
 import xmltodict
+
 import globalpayments as gp
-import datetime
-from importlib.metadata import version
 from globalpayments.api.entities import (
     Address,
     BatchSummary,
@@ -28,7 +30,6 @@ from globalpayments.api.entities.enums import (
     AddressType,
     AliasAction,
     CheckType,
-    EmvChipCondition,
     EntryMethod,
     FraudFilterMode,
     HppVersion,
@@ -49,17 +50,12 @@ from globalpayments.api.entities.exceptions import (
 from globalpayments.api.gateways.gateway_response import GatewayResponse
 from globalpayments.api.gateways.table_service_connector import TableServiceConnector
 from globalpayments.api.payment_methods import (
-    Balanceable,
-    CardData,
     Credit,
     CreditCardData,
     ECheck,
     Encryptable,
     GiftCard,
-    PaymentMethod,
-    PinProtected,
     TrackData,
-    Tokenizable,
     TransactionReference,
 )
 from globalpayments.api.utils import GenerationUtils
@@ -1262,6 +1258,9 @@ class PorticoConnector(XmlGateway):
             # amount
             if builder.amount is not None:
                 et.SubElement(root, "Amt").text = str(builder.amount)
+
+            if builder.auth_amount is not None:
+                et.SubElement(root, "AuthAmt").text = str(builder.auth_amount)
 
             # gratuity
             if builder.gratuity is not None:
