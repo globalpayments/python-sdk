@@ -7,7 +7,7 @@ GlobalPayments.Api.egg-info/
 
 *.pyc
 
-
+.python-version
 
 
 # Byte-compiled / optimized / DLL files
@@ -181,6 +181,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-
 #macos
 .DS_Store
+
+#logs
+logs/
+

@@ -470,6 +470,7 @@ class IntegrationGatewaysPorticoConnectorCreditTests(unittest.TestCase):
 
         self.assertNotEqual(None, response)
         self.assertEqual("00", response.response_code)
+        self.card.three_d_secure = None
 
     def test_3dSecure_v2(self):
         ecom = ThreeDSecure()
@@ -488,6 +489,7 @@ class IntegrationGatewaysPorticoConnectorCreditTests(unittest.TestCase):
 
         self.assertNotEqual(None, response)
         self.assertEqual("00", response.response_code)
+        self.card.three_d_secure = None
 
     def test_credit_sale_with_cof(self):
         # First transaction - initial card holder initiated transaction

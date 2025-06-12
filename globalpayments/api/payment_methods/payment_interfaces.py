@@ -1,26 +1,32 @@
 """
 """
 
+from dataclasses import dataclass, field
+from typing import Optional, Any
+
 from globalpayments.api.entities.enums import EntryMethod
 
 
+@dataclass
 class PaymentMethod(object):
-    payment_method_type = None
+    payment_method_type: Optional[Any] = field(default=None)
 
 
+@dataclass
 class CardData(object):
-    card_present = False
-    cvn = None
-    cvn_presence_indicator = None
-    number = None
-    exp_month = None
-    exp_year = None
-    reader_present = False
+    card_present: bool = field(default=False)
+    cvn: Optional[str] = field(default=None)
+    cvn_presence_indicator: Optional[Any] = field(default=None)
+    number: Optional[str] = field(default=None)
+    exp_month: Optional[str] = field(default=None)
+    exp_year: Optional[str] = field(default=None)
+    reader_present: bool = field(default=False)
 
 
+@dataclass
 class TrackData(object):
-    value = None
-    entry_method = EntryMethod.Swipe
+    value: Optional[Any] = field(default=None)
+    entry_method: EntryMethod = field(default=EntryMethod.Swipe)
 
 
 class Authable(object):
@@ -43,12 +49,14 @@ class Editable(object):
         pass
 
 
+@dataclass
 class Encryptable(object):
-    encryption_data = None
+    encryption_data: Optional[Any] = field(default=None)
 
 
+@dataclass
 class PinProtected(object):
-    pin_block = None
+    pin_block: Optional[Any] = field(default=None)
 
 
 class PrePayable(object):
@@ -66,8 +74,9 @@ class Reversable(object):
         pass
 
 
+@dataclass
 class Tokenizable(object):
-    token = None
+    token: Optional[Any] = field(default=None)
 
     def tokenize(self):
         pass

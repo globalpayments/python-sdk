@@ -1,3 +1,4 @@
+# type: ignore
 import globalpayments.api
 from globalpayments.api.builders.validations.validation_target import ValidationTarget
 

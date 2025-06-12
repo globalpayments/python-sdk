@@ -3,11 +3,13 @@ Test ecommerce
 """
 
 import unittest
+
 from globalpayments.api import PorticoConfig, ServicesContainer
 from globalpayments.api.entities import Address
 from globalpayments.api.entities.enums import TaxType, TransactionModifier
 from globalpayments.api.payment_methods import CreditCardData, CreditTrackData, GiftCard
 from globalpayments.api.services import BatchService
+from globalpayments.api.utils.error_helpers import get_error_message
 from tests.data import TestCards
 
 use_prepaid = False
@@ -44,8 +46,8 @@ class IntegrationGatewaysPorticoConnectorCertificationEcommerceTests(unittest.Te
             self.assertNotEqual(None, response)
         except Exception as e:
             if (
-                str(e.message).find(self.BATCH_NOT_OPEN) != -1
-                or str(e.message).find(self.BATCH_EMPTY) != -1
+                str(get_error_message(e)).find(self.BATCH_NOT_OPEN) != -1
+                or str(get_error_message(e)).find(self.BATCH_EMPTY) != -1
             ):
                 return
 
@@ -887,7 +889,7 @@ class IntegrationGatewaysPorticoConnectorCertificationEcommerceTests(unittest.Te
         response = (
             card.charge(17.01)
             .with_currency("USD")
-            .with_modifier(TransactionModifier.Offline)
+            .with_transaction_modifier(TransactionModifier.Offline)
             .with_offline_auth_code("654321")
             .with_invoice_number("123456")
             .with_allow_duplicates(True)
@@ -903,7 +905,7 @@ class IntegrationGatewaysPorticoConnectorCertificationEcommerceTests(unittest.Te
         response = (
             card.authorize(17.10)
             .with_currency("USD")
-            .with_modifier(TransactionModifier.Offline)
+            .with_transaction_modifier(TransactionModifier.Offline)
             .with_offline_auth_code("654321")
             .with_invoice_number("123456")
             .with_allow_duplicates(True)
@@ -1340,7 +1342,7 @@ class IntegrationGatewaysPorticoConnectorCertificationEcommerceTests(unittest.Te
             self.assertNotEqual(None, response)
         except Exception as e:
             if (
-                str(e.message).find(self.BATCH_NOT_OPEN) != -1
-                or str(e.message).find(self.BATCH_EMPTY) != -1
+                str(get_error_message(e)).find(self.BATCH_NOT_OPEN) != -1
+                or str(get_error_message(e)).find(self.BATCH_EMPTY) != -1
             ):
                 return

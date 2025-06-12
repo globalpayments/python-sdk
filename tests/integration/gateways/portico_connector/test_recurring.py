@@ -38,6 +38,7 @@ class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
 
     test_02a_trans_id = None
 
+    @staticmethod
     def simple_timestamp():
         now = datetime.datetime.now()
         return now.strftime("%H%M%S")

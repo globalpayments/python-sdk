@@ -1,3 +1,4 @@
+# type: ignore
 import globalpayments.api
 from globalpayments.api.builders.validations.validation_clause import ValidationClause
 
@@ -15,7 +16,7 @@ class ValidationTarget(object):
         self.parent = parent
         self.type_name = type_name
 
-    def with_constraint(self, name, value):
+    def with_constraint(self, name, value=None):
         self.constraint_name = name
         self.constraint_value = value
         return self

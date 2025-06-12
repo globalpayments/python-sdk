@@ -1,6 +1,13 @@
 # Changelog
 
-## Latest - v2.0.4 (04/24/25):
+## Latest - v2.0.5 (06/11/25):
+
+### Enhancements:
+
+- [GpApi] Added GpApi support for credit card, debit card, reporting, and 3DSecure transactions.
+- [Other] Added typing/type hints
+
+## v2.0.4 (04/24/25):
 
 ### Enhancements:
 

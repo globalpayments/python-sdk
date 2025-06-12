@@ -1,53 +1,93 @@
 """
 """
 
+from dataclasses import dataclass, field
+from typing import List
+from typing import Optional, Dict, Any, Union, Self
+
 import globalpayments as gp
 from globalpayments.api.entities.address import Address
+from globalpayments.api.entities.alternative_payment_response import (
+    AlternativePaymentResponse,
+)
 from globalpayments.api.entities.batch_summary import BatchSummary
+from globalpayments.api.entities.card import Card
+from globalpayments.api.entities.card_issuer_response import CardIssuerResponse
+from globalpayments.api.entities.dcc_rate_data import DccRateData
 from globalpayments.api.entities.debit_mac import DebitMac
 from globalpayments.api.entities.ecommerce_info import ECommerceInfo
 from globalpayments.api.entities.encryption_data import EncryptionData
-from globalpayments.api.entities.enums import PaymentMethodType, TransactionType
+from globalpayments.api.entities.enums import (
+    PaymentMethodType,
+    TransactionType,
+    SecCode,
+    EntryMethod,
+    PaymentEntryMode,
+    PaymentSchedule,
+)
 from globalpayments.api.entities.exceptions import (
     ApiException,
     UnsupportedTransactionException,
 )
+from globalpayments.api.entities.payer_details import PayerDetails
 from globalpayments.api.entities.three_d_secure import ThreeDSecure
 from globalpayments.api.entities.transaction_summary import TransactionSummary
+from globalpayments.api.payment_methods import GiftCard
 from globalpayments.api.payment_methods import TransactionReference
-from globalpayments.api.services import RecurringService
 
 
+@dataclass
 class Transaction(object):
     """
     Transaction Response
     """
 
-    authorized_amount = None
-    available_balance = None
-    avs_response_code = None
-    avs_response_message = None
-    balance_amount = None
-    batch_summary = None
-    card_type = None
-    card_last_4 = None
-    card_brand_transaction_id = None
-    cavv_response_code = None
-    commercial_indicator = None
-    cvn_response_code = None
-    cvn_response_message = None
-    emv_issuer_response = None
-    points_balance_amount = None
-    recurring_data_code = None
-    reference_number = None
-    response_code = None
-    response_message = None
-    response_values = {}
-    timestamp = None
-    transaction_descriptor = None
-    token = None
-    gift_card = None
-    transaction_reference = None
+    authorized_amount: Optional[str] = field(default=None)
+    available_balance: Optional[str] = field(default=None)
+    avs_response_code: Optional[str] = field(default=None)
+    avs_response_message: Optional[str] = field(default=None)
+    balance_amount: Optional[str] = field(default=None)
+    batch_summary: Optional["BatchSummary"] = field(default=None)
+    card_type: Optional[str] = field(default=None)
+    card_last_4: Optional[str] = field(
+        default=None
+    )  # Note: also referenced as card_last4 in code
+    card_brand_transaction_id: Optional[str] = field(default=None)
+    cavv_response_code: Optional[str] = field(default=None)
+    commercial_indicator: Optional[str] = field(default=None)
+    cvn_response_code: Optional[str] = field(default=None)
+    cvn_response_message: Optional[str] = field(default=None)
+    debit_mac: Optional["DebitMac"] = field(default=None)
+    emv_issuer_response: Optional[str] = field(default=None)
+    host_response_date: Optional[str] = field(default=None)
+    points_balance_amount: Optional[str] = field(default=None)
+    recurring_data_code: Optional[str] = field(default=None)
+    reference_number: Optional[str] = field(default=None)
+    response_code: Optional[str] = field(default=None)
+    response_message: Optional[str] = field(default=None)
+    response_values: Dict[str, str] = field(default_factory=dict)
+    timestamp: Optional[str] = field(default=None)
+    transaction_descriptor: Optional[str] = field(default=None)
+    token: Optional[str] = field(default=None)
+    gift_card: Optional["GiftCard"] = field(default=None)
+    transaction_reference: Optional[TransactionReference] = field(default=None)
+    three_d_secure: Optional[ThreeDSecure] = field(default=None)
+    # Additional attributes needed for GpApiMapping
+    multi_capture: Optional[bool] = field(default=None)
+    fingerprint: Optional[str] = field(default=None)
+    fingerprint_indicator: Optional[str] = field(default=None)
+    token_usage_mode: Optional[str] = field(default=None)
+    card_details: Optional["Card"] = field(default=None)
+    dcc_rate_data: Optional["DccRateData"] = field(default=None)
+    card_last4: Optional[str] = field(default=None)
+    avs_address_response: Optional[str] = field(default=None)
+    card_issuer_response: Optional["CardIssuerResponse"] = field(default=None)
+    account_number_last4: Optional[str] = field(default=None)
+    account_type: Optional[str] = field(default=None)
+    payer_details: Optional["PayerDetails"] = field(default=None)
+    alternative_payment_response: Optional["AlternativePaymentResponse"] = field(
+        default=None
+    )
 
     @property
     def authorization_code(self):
@@ -135,11 +175,13 @@ class Transaction(object):
         :param amount: The additional amount to authorize
         :return: ManagementBuilder
         """
-        return (
-            gp.api.builders.ManagementBuilder(TransactionType.Auth)
-            .with_payment_method(self.transaction_reference)
-            .with_amount(amount)
-        )
+        from globalpayments.api.builders import ManagementBuilder
+
+        builder = ManagementBuilder(TransactionType.Auth)
+        builder.with_payment_method(self.transaction_reference)
+        if amount is not None:
+            builder.with_amount(amount)
+        return builder
 
     def capture(self, amount=None):
         """
@@ -147,29 +189,35 @@ class Transaction(object):
         :param amount: The amount to capture
         :return: ManagementBuilder
         """
-        return (
-            gp.api.builders.ManagementBuilder(TransactionType.Capture)
-            .with_payment_method(self.transaction_reference)
-            .with_amount(amount)
-        )
+        from globalpayments.api.builders import ManagementBuilder
+
+        builder = ManagementBuilder(TransactionType.Capture)
+        builder.with_payment_method(self.transaction_reference)
+        if amount is not None:
+            builder.with_amount(amount)
+        return builder
 
     def edit(self):
         """
         Edits the original transaction.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(
-            TransactionType.Edit
-        ).with_payment_method(self.transaction_reference)
+        from globalpayments.api.builders import ManagementBuilder
+
+        return ManagementBuilder(TransactionType.Edit).with_payment_method(
+            self.transaction_reference
+        )
 
     def hold(self):
         """
         Places the original transaction on hold.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(
-            TransactionType.Hold
-        ).with_payment_method(self.transaction_reference)
+        from globalpayments.api.builders import ManagementBuilder
+
+        return ManagementBuilder(TransactionType.Hold).with_payment_method(
+            self.transaction_reference
+        )
 
     def refund(self, amount=None):
         """
@@ -177,20 +225,24 @@ class Transaction(object):
         :param amount:The amount to refund/return
         :return: ManagementBuilder
         """
-        return (
-            gp.api.builders.ManagementBuilder(TransactionType.Refund)
-            .with_payment_method(self.transaction_reference)
-            .with_amount(amount)
-        )
+        from globalpayments.api.builders import ManagementBuilder
+
+        builder = ManagementBuilder(TransactionType.Refund)
+        builder.with_payment_method(self.transaction_reference)
+        if amount is not None:
+            builder.with_amount(amount)
+        return builder
 
     def release(self):
         """
         Releases the original transaction from a hold.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(
-            TransactionType.Release
-        ).with_payment_method(self.transaction_reference)
+        from globalpayments.api.builders import ManagementBuilder
+
+        return ManagementBuilder(TransactionType.Release).with_payment_method(
+            self.transaction_reference
+        )
 
     def reverse(self, amount=None):
         """
@@ -198,39 +250,47 @@ class Transaction(object):
         :param amount: The original authorization amount
         :return: ManagementBuilder
         """
-        return (
-            gp.api.builders.ManagementBuilder(TransactionType.Reversal)
-            .with_payment_method(self.transaction_reference)
-            .with_amount(amount)
-        )
+        from globalpayments.api.builders import ManagementBuilder
+
+        builder = ManagementBuilder(TransactionType.Reversal)
+        builder.with_payment_method(self.transaction_reference)
+        if amount is not None:
+            builder.with_amount(amount)
+        return builder
 
     def void(self):
         """
         Voids the original transaction.
         :return: ManagementBuilder
         """
-        return gp.api.builders.ManagementBuilder(
-            TransactionType.Void
-        ).with_payment_method(self.transaction_reference)
+        from globalpayments.api.builders import ManagementBuilder
+
+        return ManagementBuilder(TransactionType.Void).with_payment_method(
+            self.transaction_reference
+        )
 
 
+@dataclass
 class RecurringEntity(object):
     """
     Base implementation for recurring resource types.
     """
 
-    id = None
-    key = None
+    id: Optional[str] = field(default=None)
+    key: Optional[str] = field(default=None)
 
-    def create(self, config_name="default"):
+    def create(self, config_name: str = "default") -> Optional["RecurringEntity"]:
         """
         Creates a resource
-        :return: RecurringEntity
+        :return: RecurringEntity or None if creation fails
         """
 
-        return gp.api.services.RecurringService.create(self, config_name)
+        result = gp.api.services.RecurringService.create(self, config_name)
+        if isinstance(result, RecurringEntity):
+            return result
+        return None
 
-    def delete(self, force=False, config_name="default"):
+    def delete(self, force: bool = False, config_name: str = "default") -> Any:
         """
         Delete a record from the gateway.
         :param force: Indicates if the deletion should be forced
@@ -244,10 +304,14 @@ class RecurringEntity(object):
             )
 
     @staticmethod
-    def find(identifier_name, identifier, config_name="default"):
+    def find(
+        identifier_name: str = "", identifier: str = "", config_name: str = "default"
+    ) -> Optional["RecurringEntity"]:
         """
         Searches for a specific record by `id`.
+        :param identifier_name: The name of the identifier
         :param identifier: The ID of the record to find
+        :param config_name: The configuration name to use
         :return: RecurringEntity or None if not found
         """
         client = gp.api.ServicesContainer.instance().get_recurring_client(config_name)
@@ -257,24 +321,29 @@ class RecurringEntity(object):
                 .add_search_criteria(identifier_name, identifier)
                 .execute(config_name)
             )
-            entity = response[0] if len(response) > 0 else None
+            entity = response[0] if response is not None and len(response) > 0 else None
             if entity is not None:
                 return gp.api.services.RecurringService.get(entity, config_name)
             return None
         raise UnsupportedTransactionException()
 
     @staticmethod
-    def find_all(entity, config_name="default"):
+    def find_all(entity: Any, config_name: str = "default") -> List[Any]:
         """
         Lists all records of base type
-        :return: Array
+        :param entity: The entity to search for
+        :param config_name: The configuration name to use
+        :return: List of found entities
         """
         client = gp.api.ServicesContainer.instance().get_recurring_client(config_name)
         if client is not None and client.supports_retrieval:
-            return gp.api.services.RecurringService.search(entity).execute(config_name)
+            return (
+                gp.api.services.RecurringService.search(entity).execute(config_name)
+                or []
+            )
         raise UnsupportedTransactionException()
 
-    def save_changes(self, config_name="default"):
+    def save_changes(self, config_name: str = "default") -> Any:
         try:
             return gp.api.services.RecurringService.edit(self, config_name)
         except ApiException as exc:
@@ -284,28 +353,32 @@ class RecurringEntity(object):
             )
 
 
+@dataclass
 class Customer(RecurringEntity):
     """
     A customer resource.
     Mostly used in recurring scenarios.
     """
 
-    title = None
-    first_name = None
-    last_name = None
-    company = None
-    address = None
-    home_phone = None
-    work_phone = None
-    fax = None
-    mobile_phone = None
-    email = None
-    comments = None
-    department = None
-    status = None
-    payment_methods = None
+    title: Optional[str] = field(default=None)
+    first_name: Optional[str] = field(default=None)
+    last_name: Optional[str] = field(default=None)
+    company: Optional[str] = field(default=None)
+    address: Optional["Address"] = field(default=None)
+    home_phone: Optional[str] = field(default=None)
+    work_phone: Optional[str] = field(default=None)
+    fax: Optional[str] = field(default=None)
+    mobile_phone: Optional[str] = field(default=None)
+    email: Optional[str] = field(default=None)
+    comments: Optional[str] = field(default=None)
+    department: Optional[str] = field(default=None)
+    status: Optional[str] = field(default=None)
+    device_fingerprint: Optional[str] = field(default=None)
+    payment_methods: Optional[List["RecurringPaymentMethod"]] = field(default=None)
 
-    def add_payment_method(self, payment_id, payment_method):
+    def add_payment_method(
+        self, payment_id: str, payment_method: Any
+    ) -> "RecurringPaymentMethod":
         """
         Adds a payment method to the customer
         :param payment_id: An application derived ID for the payment method
@@ -325,31 +398,75 @@ class Customer(RecurringEntity):
         return method
 
     @staticmethod
-    def find(identifier, config_name="default"):
-        test = RecurringEntity.find("customerIdentifier", identifier, config_name)
-        return test
+    def find(
+        identifier_name: str = "customerIdentifier",
+        identifier: str = "",
+        config_name: str = "default",
+    ) -> Optional["Customer"]:
+        if identifier_name != "customerIdentifier" and not identifier:
+            identifier = identifier_name
+            identifier_name = "customerIdentifier"
+
+        result = RecurringEntity.find(identifier_name, identifier, config_name)
+        if result is not None and isinstance(result, Customer):
+            return result
+        return None
 
     @staticmethod
-    def find_all(config_name="default"):
-        entity = Customer()
+    def find_all(entity: Any = None, config_name: str = "default") -> List["Customer"]:
+        if entity is None or isinstance(entity, str):
+            if isinstance(entity, str):
+                config_name = entity
+            entity = Customer()
         return RecurringEntity.find_all(entity, config_name)
 
 
+@dataclass
 class RecurringPaymentMethod(RecurringEntity):
-    address = None
-    commercial_indicator = None
-    customer_key = None
-    expiration_date = None
-    name_on_account = None
-    payment_method = None
-    payment_method_type = PaymentMethodType.Recurring
-    payment_type = None
-    preferred_payment = None
-    status = None
-    tax_type = None
-    sec_code = None
+    address: Optional["Address"] = field(default=None)
+    commercial_indicator: Optional[str] = field(default=None)
+    customer_key: Optional[str] = field(default=None)
+    expiration_date: Optional[str] = field(default=None)
+    name_on_account: Optional[str] = field(default=None)
+    payment_method: Optional[Any] = field(default=None)
+    payment_method_type: PaymentMethodType = field(default=PaymentMethodType.Recurring)
+    payment_type: Optional[str] = field(default=None)
+    preferred_payment: Optional[bool] = field(default=None)
+    status: Optional[str] = field(default=None)
+    tax_type: Optional[str] = field(default=None)
+    sec_code: Optional[SecCode] = field(default=None)
 
-    def __init__(self, payment_method_or_customer=None, payment_id=None):
+    # Card related attributes
+    is_card_data: bool = field(default=False)
+    is_track_data: bool = field(default=False)
+    tokenizable: bool = field(default=False)
+    reader_present: bool = field(default=False)
+    card_present: bool = field(default=False)
+    number: Optional[str] = field(default=None)
+    exp_month: Optional[int] = field(default=None)
+    exp_year: Optional[int] = field(default=None)
+    cvn: Optional[str] = field(default=None)
+    value: Optional[str] = field(default=None)  # For track data
+    entry_method: Optional[EntryMethod] = field(default=None)
+
+    # Check related attributes
+    check_holder_name: Optional[str] = field(default=None)
+    check_name: Optional[str] = field(default=None)
+    phone_number: Optional[str] = field(default=None)
+    drivers_license_number: Optional[str] = field(default=None)
+    drivers_license_state: Optional[str] = field(default=None)
+    ssn_last_4: Optional[str] = field(default=None)
+    birth_year: Optional[str] = field(default=None)
+
+    # Security related
+    pin_block: Optional[str] = field(default=None)
+    encryption_data: Optional["EncryptionData"] = field(default=None)
+
+    def __init__(
+        self,
+        payment_method_or_customer: Optional[Union[str, Any]] = None,
+        payment_id: Optional[str] = None,
+    ):
         if isinstance(payment_method_or_customer, str):
             self.customer_key = payment_method_or_customer
             self.key = payment_id
@@ -357,29 +474,44 @@ class RecurringPaymentMethod(RecurringEntity):
         else:
             self.payment_method = payment_method_or_customer
 
-    def authorize(self, amount=None):
-        return (
-            gp.api.builders.AuthorizationBuilder(TransactionType.Auth, self)
-            .with_amount(amount)
-            .with_one_time_payment(True)
-        )
+    def authorize(
+        self, amount: Optional[Union[float, int, str]] = None
+    ) -> "gp.api.builders.AuthorizationBuilder":
+        from globalpayments.api.builders import AuthorizationBuilder
 
-    def charge(self, amount=None):
-        return (
-            gp.api.builders.AuthorizationBuilder(TransactionType.Sale, self)
-            .with_amount(amount)
-            .with_one_time_payment(True)
-        )
+        builder = AuthorizationBuilder(TransactionType.Auth, self)
+        if amount is not None:
+            builder.with_amount(amount)
+        builder.with_one_time_payment(True)
+        return builder
 
-    def refund(self, amount=None):
-        return gp.api.builders.AuthorizationBuilder(
-            TransactionType.Refund, self
-        ).with_amount(amount)
+    def charge(
+        self, amount: Optional[Union[float, int, str]] = None
+    ) -> "gp.api.builders.AuthorizationBuilder":
+        from globalpayments.api.builders import AuthorizationBuilder
 
-    def verify(self):
-        return gp.api.builders.AuthorizationBuilder(TransactionType.Verify, self)
+        builder = AuthorizationBuilder(TransactionType.Sale, self)
+        if amount is not None:
+            builder.with_amount(amount)
+        builder.with_one_time_payment(True)
+        return builder
 
-    def add_schedule(self, schedule_id):
+    def refund(
+        self, amount: Optional[Union[float, int, str]] = None
+    ) -> "gp.api.builders.AuthorizationBuilder":
+        from globalpayments.api.builders import AuthorizationBuilder
+
+        builder = AuthorizationBuilder(TransactionType.Refund, self)
+        if amount is not None:
+            builder.with_amount(amount)
+        return builder
+
+    def verify(self) -> "gp.api.builders.AuthorizationBuilder":
+        from globalpayments.api.builders import AuthorizationBuilder
+
+        return AuthorizationBuilder(TransactionType.Verify, self)
+
+    def add_schedule(self, schedule_id: str) -> "Schedule":
         data = Schedule()
         data.customer_key = self.customer_key
         data.payment_key = self.key
@@ -387,72 +519,91 @@ class RecurringPaymentMethod(RecurringEntity):
         return data
 
     @staticmethod
-    def find(identifier, config_name="default"):
-        return RecurringEntity.find("paymentMethodIdentifier", identifier, config_name)
+    def find(
+        identifier_name: str = "paymentMethodIdentifier",
+        identifier: str = "",
+        config_name: str = "default",
+    ) -> Optional["RecurringPaymentMethod"]:
+        if identifier_name != "paymentMethodIdentifier" and not identifier:
+            identifier = identifier_name
+            identifier_name = "paymentMethodIdentifier"
+
+        result = RecurringEntity.find(identifier_name, identifier, config_name)
+        if result is not None and isinstance(result, RecurringPaymentMethod):
+            return result
+        return None
 
     @staticmethod
-    def find_all(config_name="default"):
-        entity = RecurringPaymentMethod()
+    def find_all(
+        entity: Any = None, config_name: str = "default"
+    ) -> List["RecurringPaymentMethod"]:
+        if entity is None or isinstance(entity, str):
+            if isinstance(entity, str):
+                config_name = entity
+            entity = RecurringPaymentMethod()
         return RecurringEntity.find_all(entity, config_name)
 
 
+@dataclass
 class Schedule(RecurringEntity):
-    amount = None
-    cancellation_date = None
-    currency = None
-    customer_key = None
-    description = None
-    device_id = None
-    email_notification = None
-    email_receipt = None
-    end_date = None
-    frequency = None
-    has_started = False
-    invoice_number = None
-    name = None
-    next_processing_date = None
-    number_of_payments = None
-    po_number = None
-    payment_key = None
-    payment_schedule = None
-    reprocessing_count = None
-    start_date = None
-    status = None
-    tax_amount = None
+    amount: Optional[Union[int, float]] = field(default=None)
+    cancellation_date: Optional[str] = field(default=None)
+    currency: Optional[str] = field(default=None)
+    customer_key: Optional[str] = field(default=None)
+    description: Optional[str] = field(default=None)
+    device_id: Optional[str] = field(default=None)
+    email_notification: Optional[bool] = field(default=None)
+    email_receipt: Optional[bool] = field(default=None)
+    end_date: Optional[str] = field(default=None)
+    frequency: Optional[str] = field(default=None)
+    has_started: Optional[bool] = field(default=False)
+    invoice_number: Optional[str] = field(default=None)
+    name: Optional[str] = field(default=None)
+    next_processing_date: Optional[str] = field(default=None)
+    number_of_payments: Optional[int] = field(default=None)
+    po_number: Optional[str] = field(default=None)
+    payment_key: Optional[str] = field(default=None)
+    payment_schedule: Optional["PaymentSchedule"] = field(default=None)
+    reprocessing_count: Optional[int] = field(default=None)
+    start_date: Optional[str] = field(default=None)
+    status: Optional[str] = field(default=None)
+    tax_amount: Optional[Union[int, float]] = field(default=None)
 
     @property
     def total_amount(self):
-        return self.amount + self.tax_amount
+        amount = self.amount or 0
+        tax_amount = self.tax_amount or 0
+        return amount + tax_amount
 
-    def with_status(self, value):
+    def with_status(self, value) -> Self:
         self.status = value
         return self
 
-    def with_amount(self, value):
+    def with_amount(self, value) -> Self:
         self.amount = int(value * 100)
         return self
 
-    def with_reprocessing_count(self, value):
+    def with_reprocessing_count(self, value) -> Self:
         self.reprocessing_count = value
         return self
 
-    def with_start_date(self, value):
+    def with_start_date(self, value) -> Self:
         self.start_date = value
         return self
 
-    def with_end_date(self, value):
+    def with_end_date(self, value) -> Self:
         self.end_date = value
         return self
 
-    def with_frequency(self, value):
+    def with_frequency(self, value) -> Self:
         self.frequency = value
         return self
 
-    def with_currency(self, value):
+    def with_currency(self, value) -> Self:
         self.currency = value
         return self
 
-    def with_email_receipt(self, value):
+    def with_email_receipt(self, value) -> Self:
         self.email_receipt = value
         return self
 
@@ -461,10 +612,24 @@ class Schedule(RecurringEntity):
         self.payment_key = payment_key
 
     @staticmethod
-    def find(identifier, config_name="default"):
-        return RecurringEntity.find("scheduleIdentifier", identifier, config_name)
+    def find(
+        identifier_name: str = "scheduleIdentifier",
+        identifier: str = "",
+        config_name: str = "default",
+    ) -> Optional["Schedule"]:
+        if identifier_name != "scheduleIdentifier" and not identifier:
+            identifier = identifier_name
+            identifier_name = "scheduleIdentifier"
+
+        result = RecurringEntity.find(identifier_name, identifier, config_name)
+        if result is not None and isinstance(result, Schedule):
+            return result
+        return None
 
     @staticmethod
-    def find_all(config_name="default"):
-        entity = Schedule()
+    def find_all(entity: Any = None, config_name: str = "default") -> List["Schedule"]:
+        if entity is None or isinstance(entity, str):
+            if isinstance(entity, str):
+                config_name = entity
+            entity = Schedule()
         return RecurringEntity.find_all(entity, config_name)

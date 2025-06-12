@@ -1,8 +1,10 @@
+# type: ignore
 """
 Test builder validations
 """
 
 import unittest
+
 from globalpayments.api import PorticoConfig, ServicesContainer
 from globalpayments.api.entities.exceptions import BuilderException
 from globalpayments.api.payment_methods import CreditCardData

@@ -1,3 +1,4 @@
+# type: ignore
 class ValidationClause(object):
     parent = None
     target = None
@@ -78,6 +79,31 @@ class ValidationClause(object):
             if message is not None
             else "property `{}` is equals `{}`".format(
                 self.property_name, str(expected)
+            )
+        )
+
+        if self.precondition:
+            return self.target
+
+        return self.parent.of(self.target.type_name).with_constraint(
+            self.target.constraint_name, self.target.constraint_value
+        )
+
+    def is_equal_to(self, expected, message=None):
+        return self.equals(expected, message)
+
+    def is_not_equal_to(self, expected, message=None):
+        return self.does_not_equal(expected, message)
+
+    def is_instance_of(self, expected_type, message=None):
+        self.callback = lambda builder: isinstance(
+            self._get_property_value(builder, self.property_name), expected_type
+        )
+        self.message = (
+            message
+            if message is not None
+            else "property `{}` is not an instance of `{}`".format(
+                self.property_name, str(expected_type)
             )
         )
 

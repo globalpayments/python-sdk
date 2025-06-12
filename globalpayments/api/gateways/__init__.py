@@ -3,9 +3,13 @@
 
 import base64
 import datetime
+import json
+import os
 import re
 import xml.etree.cElementTree as et
 from importlib.metadata import version
+from typing import cast
+from urllib.parse import urlencode
 
 import certifi
 import jsonpickle
@@ -13,6 +17,13 @@ import urllib3.contrib.pyopenssl
 import xmltodict
 
 import globalpayments as gp
+from globalpayments.api.builders import AuthorizationBuilder, ReportBuilder, BaseBuilder
+from globalpayments.api.builders import ManagementBuilder
+from globalpayments.api.builders.request_builder import RequestBuilderFactory
+from globalpayments.api.builders.request_builder.GpApi import (
+    GpApiSessionInfo,
+    GpApiMiCRequestBuilder,
+)
 from globalpayments.api.entities import (
     Address,
     BatchSummary,
@@ -47,8 +58,14 @@ from globalpayments.api.entities.exceptions import (
     GatewayException,
     UnsupportedTransactionException,
 )
+from globalpayments.api.entities.gp_api import (
+    AccessTokenInfo,
+    GpApiTokenResponse,
+    GpApiRequest,
+)
 from globalpayments.api.gateways.gateway_response import GatewayResponse
 from globalpayments.api.gateways.table_service_connector import TableServiceConnector
+from globalpayments.api.mappings.gpapi_mapping import GpApiMapping
 from globalpayments.api.payment_methods import (
     Credit,
     CreditCardData,
@@ -58,30 +75,46 @@ from globalpayments.api.payment_methods import (
     TrackData,
     TransactionReference,
 )
+from globalpayments.api.payment_methods.alternative_payment_method import (
+    AlternativePaymentMethod,
+)
 from globalpayments.api.utils import GenerationUtils
+from globalpayments.api.utils.serializer import object_serialize
+
+# Delay import to avoid circular dependency
+# from globalpayments.api.builders.threeD_secure_builder import Secure3dBuilder
 
 urllib3.contrib.pyopenssl.inject_into_urllib3()
 HTTP = urllib3.PoolManager(cert_reqs="CERT_REQUIRED", ca_certs=certifi.where())
 
+from dataclasses import dataclass, field
+from typing import Dict, Any, Optional
 
+
+@dataclass
 class Gateway(object):
-    _content_type = None
-    headers = {}
-    timeout = None
-    service_url = None
+    _content_type: Optional[str] = field(default=None)
+    headers: Dict[str, Any] = field(default_factory=dict)
+    timeout: Optional[int] = field(default=None)
+    service_url: Optional[str] = field(default=None)
 
     def __init__(self, content_type):
         self._content_type = content_type
+        self.headers = {}
 
     def send_request(self, verb, endpoint, data=None, query_string_params=None):
         query_string = self._build_query_string(query_string_params)
         url = self.service_url + endpoint + query_string
         request_headers = {"Content-Type": self._content_type}
-        for key in self.headers:
-            request_headers[key] = self.headers[key]
 
+        # Filter out None values and ensure all values are strings
+        if hasattr(self, "headers") and self.headers:
+            headers_dict = {k: str(v) for k, v in self.headers.items() if v is not None}
+            request_headers.update(headers_dict)
+
+        # Use type ignore to handle the case where headers might contain other types
         try:
-            request = HTTP.request(verb, url, headers=request_headers, body=data)
+            request = HTTP.request(verb, url, headers=request_headers, body=data)  # type: ignore
             raw_response = request.data
             response = GatewayResponse()
             response.status_code = request.status
@@ -89,14 +122,14 @@ class Gateway(object):
             return response
         except Exception as exc:
             raise GatewayException(
-                "Error occurred while communicating with gateway.", exc
+                "Error occurred while communicating with gateway.", inner_exception=exc
             )
 
     @staticmethod
     def _build_query_string(query_string_params):
         if query_string_params is None:
             return ""
-        return ""
+        return "?" + urlencode(query_string_params)
 
 
 class RestGateway(Gateway):
@@ -105,11 +138,32 @@ class RestGateway(Gateway):
 
     def do_transaction(self, verb, endpoint, data=None, query_string_params=None):
         response = self.send_request(verb, endpoint, data, query_string_params)
-        if response.status_code is not 200 and response.status_code is not 204:
-            parsed = jsonpickle.decode(response.raw_response)
-            error = parsed if "error" not in parsed else parsed["error"]
+        if response.status_code != 200 and response.status_code != 204:
+            parsed = {}
+            try:
+                parsed = jsonpickle.decode(response.raw_response)
+            except Exception:
+                pass
+            # Handle the error response safely
+            error_message = "Unknown error"
+            code = parsed.get("error_code", str(response.status_code))
+            if isinstance(parsed, dict):
+                if (
+                    "error" in parsed
+                    and isinstance(parsed["error"], dict)
+                    and "message" in parsed["error"]
+                ):
+                    error_message = str(parsed["error"]["message"])
+                elif "message" in parsed:
+                    error_message = str(parsed["message"])
+                elif "detailed_error_description" in parsed:
+                    error_message = str(parsed["detailed_error_description"])
+                else:
+                    error_message = str(response.raw_response)
             raise GatewayException(
-                "Status Code: {} - {}".format(response.status_code, error["message"])
+                "Status Code: {} - {}".format(code, error_message),
+                parsed.get("detailed_error_code", response.status_code),
+                error_message,
             )
         return response.raw_response
 
@@ -120,7 +174,7 @@ class XmlGateway(Gateway):
 
     def do_transaction(self, request):
         response = self.send_request("POST", "", request)
-        if response.status_code is not 200:
+        if response.status_code != 200:
             raise GatewayException(
                 "Unexpected http status code [{}]".format(response.status_code)
             )
@@ -177,7 +231,7 @@ class PayPlanConnector(RestGateway):
         response = self.do_transaction(
             self._map_method(builder.transaction_type),
             self._map_url(builder),
-            jsonpickle.encode(request, False, False, False),
+            object_serialize(request),
         )
         return self._map_response(response, builder)
 
@@ -194,8 +248,9 @@ class PayPlanConnector(RestGateway):
             if builder.transaction_type == TransactionType.Search:
                 customers = []
 
-                for value in response["results"]:
-                    customers.append(self._hydrate_customer(value))
+                if isinstance(response, dict) and "results" in response:
+                    for value in response["results"]:
+                        customers.append(self._hydrate_customer(value))
 
                 return customers
 
@@ -209,8 +264,9 @@ class PayPlanConnector(RestGateway):
             if builder.transaction_type == TransactionType.Search:
                 methods = []
 
-                for value in response["results"]:
-                    methods.append(self._hydrate_payment_method(value))
+                if isinstance(response, dict) and "results" in response:
+                    for value in response["results"]:
+                        methods.append(self._hydrate_payment_method(value))
 
                 return methods
 
@@ -224,8 +280,9 @@ class PayPlanConnector(RestGateway):
             if builder.transaction_type == TransactionType.Search:
                 schedules = []
 
-                for value in response["results"]:
-                    schedules.append(self._hydrate_schedule(value))
+                if isinstance(response, dict) and "results" in response:
+                    for value in response["results"]:
+                        schedules.append(self._hydrate_schedule(value))
 
                 return schedules
 
@@ -283,7 +340,11 @@ class PayPlanConnector(RestGateway):
                     else "ACH"
                 )
             elif builder.transaction_type == TransactionType.Edit:
-                payment_method = builder.entity.payment_type.replace(" ", "")
+                payment_method = (
+                    builder.entity.payment_type.replace(" ", "")
+                    if builder.entity.payment_type
+                    else ""
+                )
 
             return "{}{}{}".format(
                 (
@@ -340,10 +401,12 @@ class PayPlanConnector(RestGateway):
         request["nameOnAccount"] = payment.name_on_account
         request = self._build_address(request, payment.address)
 
+        # Initialize these variables to avoid unbound variable errors
+        payment_info = None
+        payment_info_key = None
+
         if transaction_type == TransactionType.Create:
             has_token, token_value = self._has_token(payment.payment_method)
-            payment_info = None
-            payment_info_key = None
 
             if isinstance(payment.payment_method, CreditCardData):
                 method = payment.payment_method
@@ -365,7 +428,9 @@ class PayPlanConnector(RestGateway):
                 payment_info_key = "track"
                 payment_info = {
                     "data": method.value,
-                    "dataEntryMode": method.entry_method.upper(),
+                    "dataEntryMode": (
+                        method.entry_method.value.upper() if method.entry_method else ""
+                    ),
                 }
 
             if isinstance(payment.payment_method, ECheck):
@@ -388,7 +453,7 @@ class PayPlanConnector(RestGateway):
             if isinstance(payment.payment_method, Encryptable):
                 enc = payment.payment_method.encryption_data
 
-                if enc is not None:
+                if enc is not None and payment_info is not None:
                     payment_info["trackNumber"] = enc.track_number
                     payment_info["key"] = enc.ktb
                     payment_info["encryptionType"] = "E3"
@@ -399,7 +464,8 @@ class PayPlanConnector(RestGateway):
             request["cpcTaxType"] = payment.tax_type
             request["expirationDate"] = payment.expiration_date
 
-        if payment_info is not None:
+        # Only add payment_info if both variables are defined
+        if payment_info is not None and payment_info_key is not None:
             request[payment_info_key] = payment_info
 
         return request
@@ -515,6 +581,7 @@ class PayPlanConnector(RestGateway):
     def _build_date(self, request, name, date, force=False):
         if date is not None or force is True:
             # TODO: format date
+            value = ""
             if isinstance(date, datetime.date):
                 value = date.strftime("%m%d%Y")
             elif isinstance(date, str):
@@ -749,6 +816,341 @@ class PayPlanConnector(RestGateway):
             return False
 
 
+class GpApiConnector(RestGateway):
+    GP_API_VERSION = "2021-03-22"
+    IDEMPOTENCY_HEADER = "x-gp-idempotency"
+
+    def __init__(self, raw_config: Any):
+        from globalpayments.api import GpApiConfig
+
+        super().__init__()
+        config: GpApiConfig = raw_config
+        self.gpApiConfig = config
+        self.accessToken = None
+        self.builtInMerchantManagementService = True
+        self.supports_hosted_payments = True
+
+        self.headers["X-GP-Version"] = self.GP_API_VERSION
+        self.headers["Accept"] = "application/json"
+        self.headers["Accept-Encoding"] = "gzip"
+        self.headers["x-gp-sdk"] = f"python;version={self._get_release_version()}"
+        self.headers["Content-Type"] = "charset=UTF-8"
+
+    def supports_open_banking(self) -> bool:
+        return True
+
+    def has_built_in_merchant_management_service(self) -> bool:
+        return self.builtInMerchantManagementService
+
+    def get_version(self) -> str:
+        return ThreeDSecureVersion.Any.value
+
+    def _get_release_version(self) -> Optional[str]:
+        """
+        Get the SDK release version
+
+        :return: str|None
+        """
+        filename = os.path.join(os.path.dirname(__file__), "../../../package.json")
+        if not os.path.exists(filename):
+            return None
+
+        with open(filename, "r") as f:
+            package_json = json.load(f)
+
+        return package_json.get("version", "")
+
+    def process_authorization(self, builder: AuthorizationBuilder) -> Transaction:
+        """
+        Serializes and executes authorization transactions
+
+        :param builder: The transaction's builder
+        :return: Transaction
+        """
+        if not self.accessToken:
+            self.sign_in()
+
+        response = self.execute_process(builder)
+
+        if isinstance(builder.payment_method, AlternativePaymentMethod):
+            return GpApiMapping.map_response_apm(response)
+
+        return GpApiMapping.map_response(response)
+
+    def sign_in(self) -> None:
+        access_token_info = self.gpApiConfig.access_token_info
+        if access_token_info and access_token_info.access_token:
+            self.headers["Authorization"] = f"Bearer {access_token_info.access_token}"
+            return
+
+        response = self.get_access_token()
+
+        self.accessToken = response.get_token()
+        self.headers["Authorization"] = f"Bearer {self.accessToken}"
+
+        if not isinstance(access_token_info, AccessTokenInfo):
+            access_token_info = AccessTokenInfo()
+
+        access_token_info.merchant_id = response.merchant_id
+
+        if not access_token_info.access_token:
+            access_token_info.access_token = response.get_token()
+
+        if not access_token_info.data_account_id:
+            access_token_info.data_account_id = response.get_data_account_id()
+
+        if (
+            not access_token_info.tokenization_account_id
+            and not access_token_info.tokenization_account_name
+        ):
+            access_token_info.tokenization_account_id = (
+                response.get_tokenization_account_id()
+            )
+
+        if (
+            not access_token_info.transaction_processing_account_id
+            and not access_token_info.transaction_processing_account_name
+        ):
+            access_token_info.transaction_processing_account_id = (
+                response.get_transaction_processing_account_id()
+            )
+            access_token_info.transaction_processing_account_name = (
+                response.get_transaction_processing_account_name()
+            )
+
+        if (
+            not access_token_info.dispute_management_account_id
+            and not access_token_info.dispute_management_account_name
+        ):
+            access_token_info.dispute_management_account_id = (
+                response.get_dispute_management_account_id()
+            )
+
+        if (
+            not access_token_info.risk_assessment_account_id
+            and not access_token_info.risk_assessment_account_name
+        ):
+            access_token_info.risk_assessment_account_id = (
+                response.get_risk_assessment_account_id()
+            )
+
+        if (
+            not access_token_info.merchant_management_account_id
+            and not access_token_info.merchant_management_account_name
+        ):
+            access_token_info.merchant_management_account_id = (
+                response.get_merchant_management_account_id()
+            )
+
+        self.gpApiConfig.access_token_info = access_token_info
+
+    def get_access_token(self) -> GpApiTokenResponse:
+        self.accessToken = ""
+
+        # Ensure correct types for sign_in method
+        app_id = self.gpApiConfig.app_id or ""
+        app_key = self.gpApiConfig.app_key or ""
+        seconds_to_expire = self.gpApiConfig.seconds_to_expire or 0
+
+        # Convert int to IntervalToExpire if needed
+        interval_to_expire = None
+        if self.gpApiConfig.interval_to_expire is not None:
+            from globalpayments.api.entities.enums import IntervalToExpire
+
+            # Default to MINUTE if the value doesn't match any enum
+            interval_to_expire = IntervalToExpire.MINUTE
+
+            # Try to map the int value to an enum value
+            if self.gpApiConfig.interval_to_expire == 1:  # Assuming 1 means MINUTE
+                interval_to_expire = IntervalToExpire.MINUTE
+            elif self.gpApiConfig.interval_to_expire == 2:  # Assuming 2 means HOUR
+                interval_to_expire = IntervalToExpire.HOUR
+            elif self.gpApiConfig.interval_to_expire == 3:  # Assuming 3 means DAY
+                interval_to_expire = IntervalToExpire.DAY
+
+        request = GpApiSessionInfo.sign_in(
+            app_id,
+            app_key,
+            seconds_to_expire,
+            interval_to_expire,
+            self.gpApiConfig.permissions,
+        )
+
+        response = super().do_transaction(
+            request.http_verb, request.endpoint, request.request_body
+        )
+
+        # Ensure response is a string
+        if isinstance(response, bytes):
+            response = response.decode("utf-8")
+        elif response is None:
+            response = ""
+
+        return GpApiTokenResponse(response)
+
+    def manage_transaction(self, builder: ManagementBuilder) -> Transaction:
+        if not self.accessToken:
+            self.sign_in()
+
+        response = self.execute_process(builder)
+
+        if isinstance(builder.payment_method, AlternativePaymentMethod):
+            return GpApiMapping.map_response_apm(response)
+
+        return GpApiMapping.map_response(response)
+
+    def process_report(self, builder: ReportBuilder):
+        if not self.accessToken:
+            self.sign_in()
+
+        response = self.execute_process(cast(ReportBuilder, builder))
+
+        # Handle None case for report_type
+        report_type = builder.report_type if hasattr(builder, "report_type") else None
+        if report_type is None:
+            raise ValueError("Report type cannot be None")
+
+        return GpApiMapping.map_report_response(response, report_type)
+
+    def serialize_request(self, builder: AuthorizationBuilder) -> str:
+        raise NotImplementedError()
+
+    def process_pay_fac(self, builder: BaseBuilder) -> Transaction:
+        raise NotImplementedError()
+
+    def execute_process(self, builder: BaseBuilder) -> Dict[str, Any]:
+        process_factory = RequestBuilderFactory()
+
+        gateway_provider = self.gpApiConfig.gateway_provider
+        if gateway_provider is None:
+            raise ValueError("Gateway provider cannot be None")
+
+        request_builder = process_factory.get_request_builder(builder, gateway_provider)
+
+        if not request_builder:
+            raise ApiException("Request builder not found!")
+
+        request = request_builder.build_request(builder, self.gpApiConfig)
+        request.endpoint = self.get_merchant_url(request) + request.endpoint
+
+        if not request:
+            raise ApiException("Request was not generated!")
+
+        idempotency_key = getattr(builder, "idempotency_key", None)
+
+        if hasattr(request, "masked_values") and request.masked_values:
+            self.masked_request_data = request.masked_values
+
+        res = self.do_transaction(
+            request.http_verb,
+            request.endpoint,
+            request.request_body,
+            request.query_params,
+            idempotency_key,
+        )
+        try:
+            if res is None:
+                return {}
+            return json.loads(res)
+        except json.decoder.JSONDecodeError:
+            raise ApiException("Invalid API Response!")
+
+    def get_merchant_url(self, request: GpApiRequest) -> str:
+        if (
+            not self.gpApiConfig.merchant_id
+            and GpApiRequest.MERCHANT_MANAGEMENT_ENDPOINT in request.endpoint
+        ):
+            return f"{GpApiRequest.MERCHANT_MANAGEMENT_ENDPOINT}/{self.gpApiConfig.merchant_id}"
+        return ""
+
+    def do_transaction(
+        self,
+        verb: str,
+        endpoint: str,
+        data: Optional[str] = None,
+        query_string_params: Optional[Dict[str, str]] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Optional[str]:
+        if not self.accessToken:
+            self.sign_in()
+
+        if idempotency_key:
+            self.headers[self.IDEMPOTENCY_HEADER] = idempotency_key
+
+        # Handle special case for settlement and disputes/challenge endpoints
+        if "settlement" in endpoint or (
+            "disputes" in endpoint and "challenge" in endpoint
+        ):
+            self.content_type = ""
+
+        if "/challenge" in endpoint:
+            self.headers["Content-Type"] = "application/json"
+
+        try:
+            response = super().do_transaction(verb, endpoint, data, query_string_params)
+        except Exception as e:
+            if (
+                "NOT_AUTHENTICATED" in str(e)
+                and self.gpApiConfig.app_key
+                and self.gpApiConfig.app_key
+            ):
+                self.accessToken = ""
+                self.sign_in()
+                result = super().do_transaction(
+                    verb, endpoint, data, query_string_params
+                )
+                # Convert bytes to str if needed
+                if isinstance(result, bytes):
+                    return result.decode("utf-8")
+                return result
+            raise e
+        finally:
+            if self.IDEMPOTENCY_HEADER in self.headers:
+                del self.headers[self.IDEMPOTENCY_HEADER]
+
+        # Convert bytes to str if needed
+        if isinstance(response, bytes):
+            return response.decode("utf-8")
+        return response
+
+    def process_pass_through(self, json_request: Optional[str]) -> str:
+        if not self.accessToken:
+            self.sign_in()
+
+        if json_request is None:
+            raise ValueError("JSON request cannot be None")
+
+        request_builder = GpApiMiCRequestBuilder()
+        request = request_builder.build_request_from_json(
+            json_request, self.gpApiConfig
+        )
+
+        if not request:
+            raise GatewayException("Request was not generated!")
+
+        request.endpoint = self.get_merchant_url(request) + request.endpoint
+
+        result = self.do_transaction(
+            request.http_verb, request.endpoint, request.request_body
+        )
+
+        return result if result is not None else ""
+
+    def process_secure3d(self, builder) -> Transaction:
+        # Import here to avoid circular imports
+        # from globalpayments.api.builders.threeD_secure_builder import Secure3dBuilder
+        if not self.accessToken:
+            self.sign_in()
+
+        response = self.execute_process(builder)
+
+        return GpApiMapping.map_response_secure3D(response)
+
+    def process_secure_3d(self, builder) -> Transaction:
+        """Alias for process_secure3d for consistent naming"""
+        return self.process_secure3d(builder)
+
+
 class PorticoConnector(XmlGateway):
     site_id = None
     license_id = None
@@ -949,7 +1351,7 @@ class PorticoConnector(XmlGateway):
                         secure_ecom.cavv
                     )
                     et.SubElement(secure_ecommerce, "ECommerceIndicator").text = (
-                        secure_ecom.eci
+                        str(secure_ecom.eci) if secure_ecom.eci is not None else None
                     )
                     et.SubElement(secure_ecommerce, "XID").text = secure_ecom.xid
                 elif (card.three_d_secure is not None) and (
@@ -1030,7 +1432,9 @@ class PorticoConnector(XmlGateway):
 
             # currency
             if builder.currency:
-                et.SubElement(block1, "Currency").text = builder.currency.upper()
+                et.SubElement(block1, "Currency").text = (
+                    builder.currency.upper() if builder.currency else ""
+                )
 
             # if it's replace, add the new card, and change the card data name to be old card data
             if builder.transaction_type == TransactionType.Replace:
@@ -1045,7 +1449,9 @@ class PorticoConnector(XmlGateway):
 
                 card_data = et.Element("OldCardData")
 
-            et.SubElement(card_data, card.value_type).text = card.value
+            # Ensure value_type is never None
+            value_type = card.value_type if card.value_type is not None else "CardNbr"
+            et.SubElement(card_data, value_type).text = card.value
             if card.pin:
                 et.SubElement(card_data, "PIN").text = card.pin
 
@@ -1091,6 +1497,8 @@ class PorticoConnector(XmlGateway):
             if check.entry_mode:
                 et.SubElement(block1, "DataEntryMode").text = (
                     check.entry_mode.value.upper()
+                    if check.entry_mode and check.entry_mode.value
+                    else ""
                 )
             if check.check_type:
                 et.SubElement(block1, "CheckType").text = check.check_type.value
@@ -1488,19 +1896,29 @@ class PorticoConnector(XmlGateway):
         item = item[1] if item[1] is not None else item
 
         if "AuthAmt" in item:
-            result.authorized_amount = str(item["AuthAmt"])
+            result.authorized_amount = (
+                "{:.2f}".format(float(item["AuthAmt"])) if item["AuthAmt"] else None
+            )
         if "AvailableBalance" in item:
-            result.available_balance = str(item["AvailableBalance"])
+            result.available_balance = (
+                "{:.2f}".format(float(item["AvailableBalance"]))
+                if item["AvailableBalance"]
+                else None
+            )
         if "AVSRsltCode" in item:
             result.avs_response_code = str(item["AVSRsltCode"])
         if "AVSRsltText" in item:
             result.avs_response_message = str(item["AVSRsltText"])
         if "BalanceAmt" in item:
-            result.balance_amount = str(item["BalanceAmt"])
+            result.balance_amount = (
+                "{:.2f}".format(float(item["BalanceAmt"]))
+                if item["BalanceAmt"]
+                else None
+            )
         if "CardType" in item:
             result.card_type = str(item["CardType"])
         if "TokenPANLast4" in item:
-            result.card_last4 = str(item["TokenPANLast4"])
+            result.card_last_4 = str(item["TokenPANLast4"])
         if "CAVVResultCode" in item:
             result.cavv_response_code = str(item["CAVVResultCode"])
         if "CPCInd" in item:
@@ -1512,7 +1930,9 @@ class PorticoConnector(XmlGateway):
         if "EMVIssuerResp" in item:
             result.emv_issuer_response = str(item["EMVIssuerResp"])
         if "PointsBalanceAmt" in item:
-            result.points_balance_amount = str(item["PointsBalanceAmt"])
+            result.points_balance_amount = (
+                str(item["PointsBalanceAmt"]) if item["PointsBalanceAmt"] else None
+            )
         if "RecurringDataCode" in item:
             result.recurring_data_code = str(item["RecurringDataCode"])
         if "RefNbr" in item:
@@ -1592,7 +2012,12 @@ class PorticoConnector(XmlGateway):
 
         return result
 
-    def _map_report_response(self, raw_response, report_type):
+    def _map_report_response(
+        self, raw_response, report_type: Optional[ReportType] = None
+    ):
+        if report_type is None:
+            return None
+
         namespaces = {
             "http://Hps.Exchange.PosGateway": None,
             "http://schemas.xmlsoap.org/soap/envelope/": None,
@@ -1653,7 +2078,11 @@ class PorticoConnector(XmlGateway):
         elif builder.transaction_type == TransactionType.Capture:
             ret = "CreditAddToBatch"
         elif builder.transaction_type == TransactionType.Auth:
-            if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
+            if (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
+            ):
                 if builder.transaction_modifier == TransactionModifier.Additional:
                     ret = "CreditAdditionalAuth"
                 elif builder.transaction_modifier == TransactionModifier.Incremental:
@@ -1665,12 +2094,17 @@ class PorticoConnector(XmlGateway):
                 else:
                     ret = "CreditAuth"
             elif (
-                builder.payment_method.payment_method_type
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
                 == PaymentMethodType.Recurring
             ):
                 ret = "RecurringBillingAuth"
         elif builder.transaction_type == TransactionType.Sale:
-            if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
+            if (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
+            ):
                 if builder.transaction_modifier == TransactionModifier.Offline:
                     ret = "CreditOfflineSale"
                 elif builder.transaction_modifier == TransactionModifier.Recurring:
@@ -1678,49 +2112,91 @@ class PorticoConnector(XmlGateway):
                 else:
                     ret = "CreditSale"
             elif (
-                builder.payment_method.payment_method_type
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
                 == PaymentMethodType.Recurring
             ):
                 if builder.payment_method.payment_type == "ACH":
                     ret = "CheckSale"
                 else:
                     ret = "RecurringBilling"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
+            ):
                 ret = "DebitSale"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Cash:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Cash
+            ):
                 ret = "CashSale"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.ACH:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.ACH
+            ):
                 ret = "CheckSale"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.EBT:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.EBT
+            ):
                 if builder.transaction_modifier == TransactionModifier.CashBack:
                     ret = "EBTCashBackPurchase"
                 elif builder.transaction_modifier == TransactionModifier.Voucher:
                     ret = "EBTVoucherPurchase"
                 else:
                     ret = "EBTFSPurchase"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+            ):
                 ret = "GiftCardSale"
         elif builder.transaction_type == TransactionType.Refund:
-            if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
+            if (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
+            ):
                 ret = "CreditReturn"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
+            ):
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
                 ret = "DebitReturn"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Cash:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Cash
+            ):
                 ret = "CashReturn"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.EBT:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.EBT
+            ):
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
                 ret = "EBTFSReturn"
         elif builder.transaction_type == TransactionType.Reversal:
-            if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
+            if (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
+            ):
                 ret = "CreditReversal"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
+            ):
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
                 ret = "DebitReversal"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+            ):
                 ret = "GiftCardReversal"
         elif builder.transaction_type == TransactionType.Edit:
             if builder.transaction_modifier == TransactionModifier.LevelII:
@@ -1728,25 +2204,56 @@ class PorticoConnector(XmlGateway):
             else:
                 ret = "CreditTxnEdit"
         elif builder.transaction_type == TransactionType.Void:
-            if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
+            if (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
+            ):
                 ret = "CreditVoid"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.ACH:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.ACH
+            ):
                 ret = "CheckVoid"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+            ):
                 ret = "GiftCardVoid"
         elif builder.transaction_type == TransactionType.AddValue:
-            if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
+            if (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
+            ):
                 ret = "PrePaidAddValue"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Debit:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
+            ):
                 ret = "DebitAddValue"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+            ):
                 ret = "GiftCardAddValue"
         elif builder.transaction_type == TransactionType.Balance:
-            if builder.payment_method.payment_method_type == PaymentMethodType.Credit:
+            if (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
+            ):
                 ret = "PrePaidBalanceInquiry"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.EBT:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.EBT
+            ):
                 ret = "EBTBalanceInquiry"
-            elif builder.payment_method.payment_method_type == PaymentMethodType.Gift:
+            elif (
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+            ):
                 ret = "GiftCardBalance"
         elif builder.transaction_type == TransactionType.BenefitWithdrawal:
             ret = "EBTCashBenefitWithdrawal"
@@ -1797,7 +2304,7 @@ class PorticoConnector(XmlGateway):
             summary.amount = item["Amt"]
 
         if "AuthAmt" in item:
-            summary.authorizated_amount = item["AuthAmt"]
+            summary.authorized_amount = item["AuthAmt"]
 
         if "AuthCode" in item:
             summary.auth_code = item["AuthCode"]
@@ -1942,7 +2449,9 @@ class RealexConnector(XmlGateway):
             et.SubElement(card_element, "number").text = card.number
             et.SubElement(card_element, "expdate").text = card.short_expiry
             et.SubElement(card_element, "chname").text = card.card_holder_name
-            et.SubElement(card_element, "type").text = card.card_type.upper()
+            et.SubElement(card_element, "type").text = (
+                card.card_type.upper() if card.card_type else ""
+            )
 
             if card.cvn is not None:
                 cvn_element = et.SubElement(card_element, "cvn")
@@ -1954,9 +2463,21 @@ class RealexConnector(XmlGateway):
 
             if card.three_d_secure is not None:
                 mpi = et.SubElement(request, "mpi")
-                et.SubElement(mpi, "cavv").text = card.three_d_secure.cavv
-                et.SubElement(mpi, "xid").text = card.three_d_secure.xid
-                et.SubElement(mpi, "eci").text = card.three_d_secure.eci
+                et.SubElement(mpi, "cavv").text = (
+                    str(card.three_d_secure.cavv)
+                    if card.three_d_secure.cavv is not None
+                    else ""
+                )
+                et.SubElement(mpi, "xid").text = (
+                    str(card.three_d_secure.xid)
+                    if card.three_d_secure.xid is not None
+                    else ""
+                )
+                et.SubElement(mpi, "eci").text = (
+                    str(card.three_d_secure.eci)
+                    if card.three_d_secure.eci is not None
+                    else ""
+                )
 
             to_hash = []
             if builder.transaction_type == TransactionType.Verify:
@@ -2065,10 +2586,14 @@ class RealexConnector(XmlGateway):
             et.SubElement(tss_info, "custipaddress").text = builder.customer_ip_address
 
             if builder.billing_address is not None:
-                tss_info.append(self._build_address(builder.billing_address))
+                address_node = self._build_address(builder.billing_address)
+                if address_node is not None:
+                    tss_info.append(address_node)
 
             if builder.shipping_address is not None:
-                tss_info.append(self._build_address(builder.shipping_address))
+                address_node = self._build_address(builder.shipping_address)
+                if address_node is not None:
+                    tss_info.append(address_node)
 
         # et.SubElement(request, 'mobile')
         # et.SubElement(request, 'token').text = token
@@ -2083,7 +2608,9 @@ class RealexConnector(XmlGateway):
 
         encoder = lambda x: (
             x
-            if self.hosted_payment_config.hpp_version == HppVersion.Version2
+            if self.hosted_payment_config is not None
+            and getattr(self.hosted_payment_config, "hpp_version", None)
+            == HppVersion.VERSION_2
             else lambda x: base64.b64encode(bytearray(x.encode()))
         )
         request = {}
@@ -2229,7 +2756,7 @@ class RealexConnector(XmlGateway):
             to_hash.append(str(self.hosted_payment_config.fraud_filter_mode))
 
         request["SHA1HASH"] = GenerationUtils.generate_hash(self.shared_secret, to_hash)
-        return jsonpickle.encode(request)
+        return object_serialize(request)
 
     def manage_transaction(self, builder):
         timestamp = GenerationUtils.generate_timestamp()
@@ -2615,8 +3142,10 @@ class RealexConnector(XmlGateway):
                 )
             },
         )
-        et.SubElement(address_node, "code").text = code
-        et.SubElement(address_node, "country").text = address.country
+        et.SubElement(address_node, "code").text = str(code) if code is not None else ""
+        et.SubElement(address_node, "country").text = (
+            str(address.country) if address.country is not None else ""
+        )
 
         return address_node
 

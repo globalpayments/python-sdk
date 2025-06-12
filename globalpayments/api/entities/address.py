@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+from typing import Optional, Dict, Any, Union
+
+from globalpayments.api.entities.enums import AddressType
+
 
 class CountryUtils(object):
     significant_country_match = 6
@@ -335,13 +339,15 @@ class CountryUtils(object):
         for key in list(dictionary.keys()):
             score = CountryUtils.fuzzy_score(key, query)
 
-            if score > significant_match and score > high_score:
+            if (score or 0) > (significant_match or 0) and (score or 0) > (
+                high_score or 0
+            ):
                 matches = {}
                 high_score = score
                 rvalue = dictionary[key]
                 matches[key] = rvalue
 
-            elif score == high_score:
+            elif score is not None and high_score is not None and score == high_score:
                 matches[key] = dictionary[key]
 
         if len(matches) > 1:
@@ -383,45 +389,76 @@ class CountryUtils(object):
         return score
 
 
+from dataclasses import dataclass, field
+
+
+@dataclass
 class Address(object):
     """
     Represents a billing or shipping address for the consumer.
     """
 
-    address_type = None
-    street_address_1 = None
-    street_address_2 = None
-    street_address_3 = None
-    city = None
-    province = None
-    postal_code = None
-    _country = None
-    _country_code = None
+    address_type: Optional[AddressType] = field(default=None)
+    street_address_1: Optional[str] = field(default=None)
+    street_address_2: Optional[str] = field(default=None)
+    street_address_3: Optional[str] = field(default=None)
+    city: Optional[str] = field(default=None)
+    province: Optional[str] = field(default=None)
+    postal_code: Optional[str] = field(default=None)
+    _country: Optional[str] = field(default=None)
+    _country_code: Optional[str] = field(default=None)
+
+    # Additional attributes needed for GpApiMapping
+    type: Optional[Any] = field(default=None)
 
     @property
-    def state(self):
+    def street_address1(self) -> Optional[str]:
+        return self.street_address_1
+
+    @street_address1.setter
+    def street_address1(self, value: Optional[str]) -> None:
+        self.street_address_1 = value
+
+    @property
+    def street_address2(self) -> Optional[str]:
+        return self.street_address_2
+
+    @street_address2.setter
+    def street_address2(self, value: Optional[str]) -> None:
+        self.street_address_2 = value
+
+    @property
+    def street_address3(self) -> Optional[str]:
+        return self.street_address_3
+
+    @street_address3.setter
+    def street_address3(self, value: Optional[str]) -> None:
+        self.street_address_3 = value
+
+    @property
+    def state(self) -> Optional[str]:
         return self.province
 
     @state.setter
-    def state(self, value):
+    def state(self, value: Optional[str]) -> None:
         self.province = value
 
     @property
-    def country(self):
+    def country(self) -> Optional[str]:
         return self._country
 
     @country.setter
-    def country(self, value):
+    def country(self, value: Optional[str]) -> None:
         self._country = value
         if self._country_code is None:
             self._country_code = CountryUtils.get_country_code_by_country(self._country)
 
     @property
-    def country_code(self):
+    def country_code(self) -> Optional[str]:
         return self._country_code
 
     @country_code.setter
-    def country_code(self, value):
+    def country_code(self, value: Optional[str]) -> None:
         self._country_code = value
         if self._country is None:
             self._country = CountryUtils.get_country_by_country_code(self._country_code)

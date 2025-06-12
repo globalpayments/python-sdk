@@ -1,9 +1,15 @@
+from typing import Optional
+
+
 class ApiException(Exception):
     """
     a general error occurred
     """
 
-    def __init__(self, message, inner_exception=None):
+    message: str
+    inner_exception: Optional[Exception]
+
+    def __init__(self, message: str, inner_exception: Optional[Exception] = None):
         Exception.__init__(self, message)
         self.message = message
         self.inner_exception = inner_exception
@@ -14,8 +20,8 @@ class BuilderException(ApiException):
     A builder error occurred. Check the method calls against the builder.
     """
 
-    def __init__(self, message=None):
-        ApiException.__init__(self, message)
+    def __init__(self, message: Optional[str] = None):
+        ApiException.__init__(self, message or "")
 
 
 class ConfigurationException(ApiException):
@@ -23,7 +29,7 @@ class ConfigurationException(ApiException):
     An account or SDK configuration error occurred.
     """
 
-    def __init__(self, message):
+    def __init__(self, message: str):
         ApiException.__init__(self, message)
 
 
@@ -33,12 +39,16 @@ class GatewayException(ApiException):
     """
 
     #  the gateway response code
-    response_code = None
+    response_code: Optional[str] = None
     #  the gateway response message
-    response_message = None
+    response_message: Optional[str] = None
 
     def __init__(
-        self, message, response_code=None, response_message=None, inner_exception=None
+        self,
+        message: str,
+        response_code: Optional[str] = None,
+        response_message: Optional[str] = None,
+        inner_exception: Optional[Exception] = None,
     ):
         ApiException.__init__(self, message, inner_exception)
         self.response_code = response_code
@@ -50,7 +60,7 @@ class MessageException(ApiException):
     A message to/from the device caused an error.
     """
 
-    def __init__(self, message, inner_exception=None):
+    def __init__(self, message: str, inner_exception: Optional[Exception] = None):
         ApiException.__init__(self, message, inner_exception)
 
 
@@ -59,7 +69,7 @@ class UnsupportedTransactionException(ApiException):
     The built transaction is not supported for the gateway or payment method.
     """
 
-    def __init__(self, message=None):
+    def __init__(self, message: Optional[str] = None):
         ApiException.__init__(
             self,
             (
@@ -68,3 +78,9 @@ class UnsupportedTransactionException(ApiException):
                 else message
             ),
         )
+
+
+class ArgumentException(Exception):
+    """Error raised when an argument is invalid."""
+
+    pass

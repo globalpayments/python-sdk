@@ -1,20 +1,23 @@
 from datetime import datetime, timedelta
+from typing import Optional, Union
+from dataclasses import dataclass, field
 from globalpayments.api.entities.enums import ECommerceChannel
 
 
+@dataclass
 class ECommerceInfo(object):
     """
     ECommerce specific data to pass during authorization/settlement.
     """
 
-    cavv = None
-    channel = None
-    eci = None
-    payment_data_source = None
-    payment_data_type = None
-    ship_day = None
-    ship_month = None
-    xid = None
+    cavv: Optional[str] = field(default=None)
+    channel: Optional[ECommerceChannel] = field(default=None)
+    eci: Optional[str] = field(default=None)
+    payment_data_source: Optional[str] = field(default=None)
+    payment_data_type: Optional[str] = field(default=None)
+    ship_day: Optional[Union[int, str]] = field(default=None)
+    ship_month: Optional[Union[int, str]] = field(default=None)
+    xid: Optional[str] = field(default=None)
 
     def __init__(self):
         self.channel = ECommerceChannel.ECOM

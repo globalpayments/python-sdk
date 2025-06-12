@@ -13,7 +13,9 @@ from globalpayments.api.entities.enums import (
 )
 from globalpayments.api.payment_methods import CreditCardData, GiftCard
 from globalpayments.api.services import BatchService
-from data import TestCards
+from tests.data import TestCards
+
+from globalpayments.api.utils.error_helpers import get_error_message
 
 visa_token = None
 mastercard_token = None
@@ -47,8 +49,8 @@ class IntegrationGatewaysPorticoConnectorCertificationRetailTests(unittest.TestC
             self.assertNotEqual(None, response)
         except Exception as e:
             if (
-                str(e.message).find(self.BATCH_NOT_OPEN) != -1
-                or str(e.message).find(self.BATCH_EMPTY) != -1
+                str(get_error_message(e)).find(self.BATCH_NOT_OPEN) != -1
+                or str(get_error_message(e)).find(self.BATCH_EMPTY) != -1
             ):
                 return
 
@@ -2068,7 +2070,7 @@ class IntegrationGatewaysPorticoConnectorCertificationRetailTests(unittest.TestC
             self.assertNotEqual(None, response)
         except Exception as e:
             if (
-                str(e.message).find(self.BATCH_NOT_OPEN) != -1
-                or str(e.message).find(self.BATCH_EMPTY) != -1
+                str(get_error_message(e)).find(self.BATCH_NOT_OPEN) != -1
+                or str(get_error_message(e)).find(self.BATCH_EMPTY) != -1
             ):
                 return

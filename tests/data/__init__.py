@@ -1,5 +1,6 @@
+from typing import Optional, Union, cast
 from globalpayments.api.entities import EncryptionData
-from globalpayments.api.entities.enums import EntryMethod, TaxType, TransactionModifier
+from globalpayments.api.entities.enums import EntryMethod
 from globalpayments.api.payment_methods import (
     CreditCardData,
     CreditTrackData,
@@ -12,7 +13,7 @@ from globalpayments.api.payment_methods import (
 
 class TestCards(object):
     @staticmethod
-    def as_debit(card, pin_block):
+    def as_debit(card: CreditTrackData, pin_block: str) -> DebitTrackData:
         data = DebitTrackData()
         data.value = card.value
         data.encryption_data = card.encryption_data
@@ -20,8 +21,10 @@ class TestCards(object):
         return data
 
     @staticmethod
-    def as_ebt(card, pin_block):
-        data = None
+    def as_ebt(
+        card: Union[CreditTrackData, CreditCardData], pin_block: str
+    ) -> Union[EBTTrackData, EBTCardData]:
+        data: Optional[Union[EBTTrackData, EBTCardData]] = None
         if isinstance(card, CreditTrackData):
             data = EBTTrackData()
             data.value = card.value
@@ -33,6 +36,7 @@ class TestCards(object):
             data.exp_year = card.exp_year
             data.reader_present = card.reader_present
             data.card_present = card.card_present
+        assert data is not None, "Card must be either CreditTrackData or CreditCardData"
         data.pin_block = pin_block
         return data
 
