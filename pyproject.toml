@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "GlobalPayments.Api"
-version = "2.0.5"
-description = "Global Payments Python SDK for integrating with Heartland and Global Payments merchant services APIs"
-authors = ["Heartland Payment Systems <EntApp_DevPortal@e-hps.com>"]
+version = "2.0.6"
+description = "Global Payments Python SDK for integrating with Global Payments merchant services APIs"
+authors = ["Global Payments <EntApp_DevPortal@e-hps.com>"]
 license = "LICENSE.md"
 readme = "README.txt"
-homepage = "https://developer.heartlandpaymentsystems.com/"
+homepage = "https://developer.globalpay.com/"
 packages = [
     { include = "globalpayments" },
 ]

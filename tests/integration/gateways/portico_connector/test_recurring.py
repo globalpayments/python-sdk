@@ -2,7 +2,9 @@
 Test Check
 """
 
-import unittest, datetime
+import datetime
+import unittest
+
 from globalpayments.api import PorticoConfig, ServicesContainer
 from globalpayments.api.entities import (
     Address,
@@ -55,7 +57,7 @@ class IntegrationGatewaysPorticoConnectorACHTests(unittest.TestCase):
     address.postal_code = "47130"
     address.country = "USA"
 
-    # Using Heartland ACH as the check processor (not Sage/Paya)
+    # Using Global Payments ACH as the check processor (not Sage/Paya)
     check = ECheck()
     check.account_number = "1357902468"
     check.routing_number = "122000030"
