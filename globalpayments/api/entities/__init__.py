@@ -13,6 +13,7 @@ from globalpayments.api.entities.alternative_payment_response import (
 from globalpayments.api.entities.batch_summary import BatchSummary
 from globalpayments.api.entities.card import Card
 from globalpayments.api.entities.card_issuer_response import CardIssuerResponse
+from globalpayments.api.entities.installment_data import InstallmentData
 from globalpayments.api.entities.dcc_rate_data import DccRateData
 from globalpayments.api.entities.debit_mac import DebitMac
 from globalpayments.api.entities.ecommerce_info import ECommerceInfo
@@ -88,6 +89,7 @@ class Transaction(object):
     alternative_payment_response: Optional["AlternativePaymentResponse"] = field(
         default=None
     )
+    installment_data: Optional["InstallmentData"] = field(default=None)
 
     @property
     def authorization_code(self):

@@ -37,6 +37,7 @@ from globalpayments.api.payment_methods import EBTCardData
 if TYPE_CHECKING:
     from globalpayments.api.entities.ecommerce_info import ECommerceInfo
     from globalpayments.api.entities.hosted_payment_data import HostedPaymentData
+    from globalpayments.api.entities.installment_data import InstallmentData
     from globalpayments.api.payment_methods import GiftCard
 
 
@@ -145,6 +146,8 @@ class AuthorizationBuilder(TransactionBuilder):
     timestamp: Optional[str] = None
     transaction_initiator: Optional[StoredCredentialInitiator] = None
     card_brand_transaction_id: Optional[str] = None
+    amount_estimated: Optional[bool] = None
+    installment_data: Optional["InstallmentData"] = None
 
     def with_address(
         self, address: Address, address_type: AddressType = AddressType.Billing
@@ -198,6 +201,10 @@ class AuthorizationBuilder(TransactionBuilder):
         self.transaction_initiator = transaction_initiator
         if value is not None:
             self.card_brand_transaction_id = value
+        return self
+
+    def with_amount_estimated(self, amount_estimated: bool) -> Self:
+        self.amount_estimated = amount_estimated
         return self
 
     def with_commercial_request(self, value: bool) -> Self:
@@ -334,6 +341,10 @@ class AuthorizationBuilder(TransactionBuilder):
 
     def with_stored_credential(self, stored_credential: "StoredCredential") -> Self:
         self.stored_credential = stored_credential
+        return self
+
+    def with_installment_data(self, installment_data: "InstallmentData") -> Self:
+        self.installment_data = installment_data
         return self
 
     def with_level_2_request(self, level_2_request: bool) -> Self:

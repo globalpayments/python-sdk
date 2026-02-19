@@ -44,3 +44,6 @@ class Card:
 
     # The label of the issuing bank or financial institution of the bin
     issuer: Optional[str] = field(default=None)
+
+    # The card funding type (DEBIT/CREDIT)
+    funding: Optional[str] = field(default=None)

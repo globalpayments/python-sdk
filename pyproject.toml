@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "GlobalPayments.Api"
-version = "2.0.6"
+version = "2.0.7"
 description = "Global Payments Python SDK for integrating with Global Payments merchant services APIs"
 authors = ["Global Payments <EntApp_DevPortal@e-hps.com>"]
 license = "LICENSE.md"

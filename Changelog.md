@@ -1,6 +1,13 @@
 # Changelog
 
-## Latest - v2.0.6 (10/03/25):
+## Latest - v2.0.7 (02/18/26):
+
+### Enhancements:
+
+- [GpApi] Added GpApi support installments.
+- [Portico] Added AmountIndicator support.
+
+## v2.0.6 (10/03/25):
 
 ### Enhancements:
 

@@ -1,5 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from globalpayments.api.entities.installment_data import InstallmentData
+    from globalpayments.api.entities.three_d_secure import ThreeDSecure
 
 
 @dataclass
@@ -56,3 +60,5 @@ class TransactionSummary(object):
     order_id: Optional[str] = field(default=None)
     entry_mode: Optional[str] = field(default=None)
     card_holder_name: Optional[str] = field(default=None)
+    installment_data: Optional["InstallmentData"] = field(default=None)
+    three_d_secure: Optional["ThreeDSecure"] = field(default=None)

@@ -9,6 +9,7 @@ from tests.integration.gateways.GpApi_connector import (
     gpapi_test_credit_card_not_present,
     gpapi_test_debit,
     gpapi_test_3DSecure,
+    gpapi_test_installments
 )
 from tests.integration.gateways.portico_connector import (
     test_credit,
@@ -49,6 +50,7 @@ def gpapi_tests():
     suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_debit))
     suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_reporting_transactions))
     suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_3DSecure))
+    suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_installments))
 
     # Run all tests in the suite
     TextTestRunner().run(suite)

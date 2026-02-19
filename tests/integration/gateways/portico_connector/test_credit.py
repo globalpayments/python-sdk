@@ -516,3 +516,51 @@ class IntegrationGatewaysPorticoConnectorCreditTests(unittest.TestCase):
         )
         self.assertNotEqual(None, cof_response)
         self.assertEqual("00", cof_response.response_code)
+
+    def test_credit_auth_with_amount_estimated_true(self):
+        response = (
+            self.card.authorize(14)
+            .with_currency("USD")
+            .with_allow_duplicates(True)
+            .with_amount_estimated(True)
+            .execute()
+        )
+
+        self.assertNotEqual(None, response)
+        self.assertEqual("00", response.response_code)
+
+    def test_credit_auth_with_amount_estimated_false(self):
+        response = (
+            self.card.authorize(14)
+            .with_currency("USD")
+            .with_allow_duplicates(True)
+            .with_amount_estimated(False)
+            .execute()
+        )
+
+        self.assertNotEqual(None, response)
+        self.assertEqual("00", response.response_code)
+
+    def test_credit_sale_with_amount_estimated_true(self):
+        response = (
+            self.card.charge(15)
+            .with_currency("USD")
+            .with_allow_duplicates(True)
+            .with_amount_estimated(True)
+            .execute()
+        )
+
+        self.assertNotEqual(None, response)
+        self.assertEqual("00", response.response_code)
+
+    def test_credit_sale_with_amount_estimated_false(self):
+        response = (
+            self.card.charge(15)
+            .with_currency("USD")
+            .with_allow_duplicates(True)
+            .with_amount_estimated(False)
+            .execute()
+        )
+
+        self.assertNotEqual(None, response)
+        self.assertEqual("00", response.response_code)

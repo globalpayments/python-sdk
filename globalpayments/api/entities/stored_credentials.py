@@ -19,3 +19,4 @@ class StoredCredential:
     schemeId: Optional[str] = field(default=None)
     reason: Optional[StoredCredentialReason] = field(default=None)
     cardBrandTransactionId: Optional[str] = field(default=None)
+    contract_reference: Optional[str] = field(default=None)

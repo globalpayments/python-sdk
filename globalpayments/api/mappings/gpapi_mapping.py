@@ -17,6 +17,7 @@ from globalpayments.api.entities.alternative_payment_response import (
     AlternativePaymentResponse,
 )
 from globalpayments.api.entities.card import Card
+from globalpayments.api.entities.installment_data import InstallmentData
 from globalpayments.api.entities.card_issuer_response import CardIssuerResponse
 from globalpayments.api.entities.dcc_rate_data import DccRateData
 from globalpayments.api.entities.dispute_document import DisputeDocument
@@ -122,6 +123,11 @@ class GpApiMapping:
         ) == GpApiMapping.DCC_RESPONSE or response.get("currency_conversion"):
             transaction.dcc_rate_data = GpApiMapping._map_dcc_info(response)
 
+        if response.get("installment"):
+            transaction.installment_data = GpApiMapping._map_installment_data(
+                response.get("installment", {})
+            )
+
         return transaction
 
     @staticmethod
@@ -150,6 +156,9 @@ class GpApiMapping:
             card_details = Card()
             card_details.masked_number_last4 = card.get("masked_number_last4")
             card_details.brand = card.get("brand")
+            card_details.issuer = card.get("issuer")
+            card_details.funding = card.get("funding")
+            card_details.bin_country = card.get("country")
             transaction.card_details = card_details
 
             transaction.card_last4 = card.get("masked_number_last4")
@@ -428,6 +437,11 @@ class GpApiMapping:
                     )
                     summary.alternative_payment_response = alternative_payment_response
                     summary.payment_type = PaymentMethodName.APM
+
+        if response.get("installment"):
+            summary.installment_data = GpApiMapping._map_installment_data(
+                response.get("installment", {})
+            )
 
         return summary
 
@@ -875,6 +889,21 @@ class GpApiMapping:
                     dispute_document.type = document.get("type")
                     summary.documents.append(dispute_document)
         return summary
+
+    @staticmethod
+    def _map_installment_data(installment: Dict[str, Any]) -> InstallmentData:
+        """
+        Maps installment response data to InstallmentData object
+
+        @param installment: Installment response data
+        @return: Mapped InstallmentData object
+        """
+        installment_data = InstallmentData()
+        installment_data.program = installment.get("program")
+        installment_data.mode = installment.get("mode")
+        installment_data.count = installment.get("count")
+        installment_data.grace_period_count = installment.get("grace_period_count")
+        return installment_data
 
     @staticmethod
     def _map_dcc_info(response: Dict[str, Any]) -> DccRateData:
