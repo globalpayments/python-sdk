@@ -67,8 +67,8 @@ class GpApiInstallmentTests(unittest.TestCase):
         # MasterCard
         cls.master_card = CreditCardData()
         cls.master_card.number = "5120350100064537"
-        cls.master_card.exp_month = 12
-        cls.master_card.exp_year = 2026
+        cls.master_card.exp_month = "12"
+        cls.master_card.exp_year = "2026"
         cls.master_card.cvn = "123"
         cls.master_card.card_present = False
         cls.master_card.reader_present = False
@@ -76,16 +76,16 @@ class GpApiInstallmentTests(unittest.TestCase):
         # Visa
         cls.visa_card = CreditCardData()
         cls.visa_card.number = "4395840190010011"
-        cls.visa_card.exp_month = 4
-        cls.visa_card.exp_year = 2026
+        cls.visa_card.exp_month = "4"
+        cls.visa_card.exp_year = "2026"
         cls.visa_card.cvn = "123"
         cls.visa_card.card_present = False
         cls.visa_card.reader_present = False
 
         # Reporting start date
-        cls.reporting_start_date = (
-                datetime.now() - timedelta(days=180)
-        ).strftime("%Y-%m-%d")
+        cls.reporting_start_date = (datetime.now() - timedelta(days=180)).strftime(
+            "%Y-%m-%d"
+        )
 
     def _assert_transaction_response(self, transaction, transaction_status):
         self.assertIsNotNone(transaction)
@@ -145,10 +145,8 @@ class GpApiInstallmentTests(unittest.TestCase):
 
         self.assertIsNotNone(transaction)
         self.assertIsNotNone(transaction.installment_data)
-        
-        self.assertEqual(
-            self.installment_data.mode, transaction.installment_data.mode
-        )
+
+        self.assertEqual(self.installment_data.mode, transaction.installment_data.mode)
         self.assertEqual(
             self.installment_data.count, transaction.installment_data.count
         )

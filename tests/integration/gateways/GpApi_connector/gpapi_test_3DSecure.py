@@ -8,6 +8,7 @@ from globalpayments.api.entities.enums import (
     AddressType,
     AuthenticationSource,
     CardChannel,
+    GatewayProvider,
     MethodUrlCompletion,
     SdkInterface,
     SdkUiType,
@@ -24,7 +25,10 @@ from globalpayments.api.payment_methods.credit import CreditCardData
 from globalpayments.api.services.secure_3d_service import Secure3dService
 from tests.data.GpApi_test_config import GpApiTestConfig
 from tests.data.Gpapi_3ds_test_cards import GpApi3DSTestCards
-from tests.integration.gateways.three_d_secure_acs_client import ThreeDSecureAcsClient
+from tests.integration.gateways.three_d_secure_acs_client import (
+    AcsResponse,
+    ThreeDSecureAcsClient,
+)
 
 
 class GpApi3DSTest(unittest.TestCase):
@@ -69,7 +73,7 @@ class GpApi3DSTest(unittest.TestCase):
         self.browser_data.color_depth = ColorDepth.TWENTY_FOUR_BITS
         self.browser_data.ip_address = "123.123.123.123"
         self.browser_data.java_enabled = True
-        self.browser_data.javascript_enabled = True
+        self.browser_data.java_script_enabled = True
         self.browser_data.language = "en"
         self.browser_data.screen_height = 1080
         self.browser_data.screen_width = 1920
@@ -163,7 +167,7 @@ class GpApi3DSTest(unittest.TestCase):
                 # Get authentication data
                 secure_ecom2 = (
                     Secure3dService.get_authentication_data()
-                    .with_server_transaction_id(secure_ecom.server_transaction_id)
+                    .with_server_transaction_id(secure_ecom.server_transaction_id or "")
                     .with_amount(self.amount)
                     .execute()
                 )
@@ -267,7 +271,7 @@ class GpApi3DSTest(unittest.TestCase):
                 # Get authentication data
                 secure_ecom2 = (
                     Secure3dService.get_authentication_data()
-                    .with_server_transaction_id(secure_ecom.server_transaction_id)
+                    .with_server_transaction_id(secure_ecom.server_transaction_id or "")
                     .with_amount(self.amount)
                     .execute()
                 )
@@ -348,9 +352,12 @@ class GpApi3DSTest(unittest.TestCase):
                 self.assertIsNotNone(init_auth.payer_authentication_request)
 
                 # Authenticate through ACS
-                auth_client = ThreeDSecureAcsClient(secure_ecom.issuer_acs_url)
-                auth_client.set_gateway_provider(self.gateway_provider)
+                auth_client = ThreeDSecureAcsClient(secure_ecom.issuer_acs_url or "")
+                auth_client.set_gateway_provider(
+                    self.gateway_provider or GatewayProvider.GpApi
+                )
                 auth_response = auth_client.authenticate_v2(init_auth)
+                assert isinstance(auth_response, AcsResponse)
 
                 self.assertTrue(auth_response.get_status())
                 self.assertIsNotNone(auth_response.get_merchant_data())
@@ -425,7 +432,7 @@ class GpApi3DSTest(unittest.TestCase):
         # Get authentication data
         secure_ecom2 = (
             Secure3dService.get_authentication_data()
-            .with_server_transaction_id(secure_ecom.server_transaction_id)
+            .with_server_transaction_id(secure_ecom.server_transaction_id or "")
             .with_amount(self.amount)
             .execute()
         )
@@ -482,14 +489,14 @@ class GpApi3DSTest(unittest.TestCase):
 
         # Setup mobile data
         mobile_data = MobileData()
-        mobile_data.encoded_data = "ew0KCSJEViI6ICIxLjAiLA0KCSJERCI6IHsNCgkJIkMwMDEiOiAiQW5kcm9pZCIsDQoJCSJDMDAyIjogIkhUQyBPbmVfTTgiLA0KCQkiQzAwNCI6ICI1LjAuMSIsDQoJCSJDMDA1IjogImVuX1VTIiwNCgkJIkMwMDYiOiAiRWFzdGVybiBTdGFuZGFyZCBUaW1lIiwNCgkJIkMwMDciOiAiMDY3OTc5MDMtZmI2MS00MWVkLTk0YzItNGQyYjc0ZTI3ZDE4IiwNCgkJIkMwMDkiOiAiSm9obidzIEFuZHJvaWQgRGV2aWNlIg0KCX0sDQoJIkRQTkEiOiB7DQoJCSJDMDEwIjogIlJFMDEiLA0KCQkiQzAxMSI6ICJSRTAzIg0KCX0sDQoJIlNXIjogWyJTVzAxIiwgIlNXMDQiXQ0KfQ0K"
-        mobile_data.application_reference = "f283b3ec-27da-42a1-acea-f3f70e75bbdc"
-        mobile_data.sdk_interface = SdkInterface.Both
-        mobile_data.sdk_ui_types = [SdkUiType.Oob]
-        mobile_data.ephemeral_public_key = """{"kty": "EC","crv": "P-256","x": "WWcpTjbOqiu_1aODllw5rYTq5oLXE_T0huCPjMIRbkI","y": "Wz_7anIeadV8SJZUfr4drwjzuWoUbOsHp5GdRZBAAiw"}"""
-        mobile_data.maximum_timeout = 50
-        mobile_data.reference_number = "3DS_LOA_SDK_PPFU_020100_00007"
-        mobile_data.sdk_trans_reference = "b2385523-a66c-4907-ac3c-91848e8c0067"
+        mobile_data.encodedData = "ew0KCSJEViI6ICIxLjAiLA0KCSJERCI6IHsNCgkJIkMwMDEiOiAiQW5kcm9pZCIsDQoJCSJDMDAyIjogIkhUQyBPbmVfTTgiLA0KCQkiQzAwNCI6ICI1LjAuMSIsDQoJCSJDMDA1IjogImVuX1VTIiwNCgkJIkMwMDYiOiAiRWFzdGVybiBTdGFuZGFyZCBUaW1lIiwNCgkJIkMwMDciOiAiMDY3OTc5MDMtZmI2MS00MWVkLTk0YzItNGQyYjc0ZTI3ZDE4IiwNCgkJIkMwMDkiOiAiSm9obidzIEFuZHJvaWQgRGV2aWNlIg0KCX0sDQoJIkRQTkEiOiB7DQoJCSJDMDEwIjogIlJFMDEiLA0KCQkiQzAxMSI6ICJSRTAzIg0KCX0sDQoJIlNXIjogWyJTVzAxIiwgIlNXMDQiXQ0KfQ0K"
+        mobile_data.applicationReference = "f283b3ec-27da-42a1-acea-f3f70e75bbdc"
+        mobile_data.sdkInterface = SdkInterface.Both
+        mobile_data.sdkUiTypes = [SdkUiType.Oob]
+        mobile_data.ephemeralPublicKey = """{"kty": "EC","crv": "P-256","x": "WWcpTjbOqiu_1aODllw5rYTq5oLXE_T0huCPjMIRbkI","y": "Wz_7anIeadV8SJZUfr4drwjzuWoUbOsHp5GdRZBAAiw"}"""
+        mobile_data.maximumTimeout = 50
+        mobile_data.referenceNumber = "3DS_LOA_SDK_PPFU_020100_00007"
+        mobile_data.sdkTransReference = "b2385523-a66c-4907-ac3c-91848e8c0067"
 
         # Format date for order create date
         formatted_date = self.date.strftime("%Y-%m-%d %H:%M:%S")

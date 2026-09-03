@@ -6,9 +6,22 @@ import base64
 import enum
 import hashlib
 import json
+import os
 import random
 import re
 import uuid
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
+
+def get_release_version() -> str:
+    if os.environ.get("SDK_TESTING", "").lower() == "true":
+        return ""
+    try:
+        return _pkg_version("GlobalPayments.Api")
+    except PackageNotFoundError:
+        return ""
+
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -420,7 +433,7 @@ class StringUtils:
         return str(formatted)
 
     @staticmethod
-    def bool_to_string(value: bool) -> Optional[str]:
+    def bool_to_string(value: Optional[bool]) -> Optional[str]:
         """
         Convert a boolean to a string.
 
@@ -447,7 +460,7 @@ class StringUtils:
             return False
 
     @staticmethod
-    def two_digit_year(exp_year: str) -> str:
+    def two_digit_year(exp_year: str) -> Optional[str]:
         if exp_year:
             return exp_year.zfill(4)[2:4]
         else:

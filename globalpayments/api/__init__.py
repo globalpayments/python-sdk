@@ -95,7 +95,7 @@ SERVICE_CONTAINER_INSTANCE = None
 
 @dataclasses.dataclass
 class GpApiConfig(GatewayConfig):
-    gateway_provider: GatewayProvider = GatewayProvider.GpApi
+    gateway_provider: Optional[GatewayProvider] = GatewayProvider.GpApi
     seconds_to_expire: Optional[int] = None
     interval_to_expire: Optional[int] = None
     permissions: Optional[List[str]] = None
@@ -115,7 +115,7 @@ class GpApiConfig(GatewayConfig):
 
 @dataclasses.dataclass
 class PorticoConfig(GatewayConfig):
-    gateway_provider: GatewayProvider = GatewayProvider.Portico
+    gateway_provider: Optional[GatewayProvider] = GatewayProvider.Portico
     #  Account's site ID
     site_id: Optional[Union[str, int]] = None
     #  Account's license ID

@@ -79,6 +79,7 @@ from globalpayments.api.payment_methods.alternative_payment_method import (
     AlternativePaymentMethod,
 )
 from globalpayments.api.utils import GenerationUtils
+from globalpayments.api.utils import get_release_version
 from globalpayments.api.utils.serializer import object_serialize
 
 # Delay import to avoid circular dependency
@@ -139,19 +140,21 @@ class RestGateway(Gateway):
     def do_transaction(self, verb, endpoint, data=None, query_string_params=None):
         response = self.send_request(verb, endpoint, data, query_string_params)
         if response.status_code != 200 and response.status_code != 204:
-            parsed = {}
+            parsed: Any = {}
             try:
                 parsed = jsonpickle.decode(response.raw_response)
             except Exception:
                 pass
             # Handle the error response safely
             error_message = "Unknown error"
-            code = parsed.get("error_code", str(response.status_code))
+            code: Any = str(response.status_code)
+            detailed_error_code: Any = response.status_code
             if isinstance(parsed, dict):
+                code = parsed.get("error_code", str(response.status_code))
                 if (
-                        "error" in parsed
-                        and isinstance(parsed["error"], dict)
-                        and "message" in parsed["error"]
+                    "error" in parsed
+                    and isinstance(parsed["error"], dict)
+                    and "message" in parsed["error"]
                 ):
                     error_message = str(parsed["error"]["message"])
                 elif "message" in parsed:
@@ -160,9 +163,12 @@ class RestGateway(Gateway):
                     error_message = str(parsed["detailed_error_description"])
                 else:
                     error_message = str(response.raw_response)
+                detailed_error_code = parsed.get(
+                    "detailed_error_code", response.status_code
+                )
             raise GatewayException(
                 "Status Code: {} - {}".format(code, error_message),
-                parsed.get("detailed_error_code", response.status_code),
+                detailed_error_code,
                 error_message,
             )
         return response.raw_response
@@ -213,8 +219,8 @@ class PayPlanConnector(RestGateway):
         request = {}
 
         if (
-                builder.transaction_type is TransactionType.Create
-                or builder.transaction_type is TransactionType.Edit
+            builder.transaction_type is TransactionType.Create
+            or builder.transaction_type is TransactionType.Edit
         ):
             if isinstance(builder.entity, Customer):
                 self._build_customer(request, builder.entity)
@@ -242,8 +248,8 @@ class PayPlanConnector(RestGateway):
         response = jsonpickle.decode(raw_response)
 
         if (
-                isinstance(builder.entity, Customer)
-                or "customerIdentifier" in builder.search_criteria
+            isinstance(builder.entity, Customer)
+            or "customerIdentifier" in builder.search_criteria
         ):
             if builder.transaction_type == TransactionType.Search:
                 customers = []
@@ -258,8 +264,8 @@ class PayPlanConnector(RestGateway):
             return self._hydrate_customer(response)
 
         if (
-                isinstance(builder.entity, RecurringPaymentMethod)
-                or "paymentMethodIdentifier" in builder.search_criteria
+            isinstance(builder.entity, RecurringPaymentMethod)
+            or "paymentMethodIdentifier" in builder.search_criteria
         ):
             if builder.transaction_type == TransactionType.Search:
                 methods = []
@@ -274,8 +280,8 @@ class PayPlanConnector(RestGateway):
             return self._hydrate_payment_method(response)
 
         if (
-                isinstance(builder.entity, Schedule)
-                or "scheduleIdentifier" in builder.search_criteria
+            isinstance(builder.entity, Schedule)
+            or "scheduleIdentifier" in builder.search_criteria
         ):
             if builder.transaction_type == TransactionType.Search:
                 schedules = []
@@ -294,8 +300,8 @@ class PayPlanConnector(RestGateway):
     @staticmethod
     def _map_method(transaction_type):
         if (
-                transaction_type == TransactionType.Create
-                or transaction_type == TransactionType.Search
+            transaction_type == TransactionType.Create
+            or transaction_type == TransactionType.Search
         ):
             return "POST"
         elif transaction_type == TransactionType.Edit:
@@ -308,15 +314,15 @@ class PayPlanConnector(RestGateway):
     def _map_url(self, builder):
         suffix = ""
         if (
-                builder.transaction_type == TransactionType.Fetch
-                or builder.transaction_type == TransactionType.Delete
-                or builder.transaction_type == TransactionType.Edit
+            builder.transaction_type == TransactionType.Fetch
+            or builder.transaction_type == TransactionType.Delete
+            or builder.transaction_type == TransactionType.Edit
         ):
             suffix = "/" + str(builder.entity.key)
 
         if (
-                isinstance(builder.entity, Customer)
-                or "customerIdentifier" in builder.search_criteria
+            isinstance(builder.entity, Customer)
+            or "customerIdentifier" in builder.search_criteria
         ):
             return "{}{}".format(
                 (
@@ -328,8 +334,8 @@ class PayPlanConnector(RestGateway):
             )
 
         if (
-                isinstance(builder.entity, RecurringPaymentMethod)
-                or "paymentMethodIdentifier" in builder.search_criteria
+            isinstance(builder.entity, RecurringPaymentMethod)
+            or "paymentMethodIdentifier" in builder.search_criteria
         ):
             payment_method = ""
 
@@ -357,8 +363,8 @@ class PayPlanConnector(RestGateway):
             )
 
         if (
-                isinstance(builder.entity, Schedule)
-                or "scheduleIdentifier" in builder.search_criteria
+            isinstance(builder.entity, Schedule)
+            or "scheduleIdentifier" in builder.search_criteria
         ):
             return "{}{}".format(
                 (
@@ -833,7 +839,7 @@ class GpApiConnector(RestGateway):
         self.headers["X-GP-Version"] = self.GP_API_VERSION
         self.headers["Accept"] = "application/json"
         self.headers["Accept-Encoding"] = "gzip"
-        self.headers["x-gp-sdk"] = f"python;version={self._get_release_version()}"
+        self.headers["x-gp-sdk"] = f"python;version={get_release_version()}"
         self.headers["Content-Type"] = "charset=UTF-8"
 
     def supports_open_banking(self) -> bool:
@@ -844,21 +850,6 @@ class GpApiConnector(RestGateway):
 
     def get_version(self) -> str:
         return ThreeDSecureVersion.Any.value
-
-    def _get_release_version(self) -> Optional[str]:
-        """
-        Get the SDK release version
-
-        :return: str|None
-        """
-        filename = os.path.join(os.path.dirname(__file__), "../../../package.json")
-        if not os.path.exists(filename):
-            return None
-
-        with open(filename, "r") as f:
-            package_json = json.load(f)
-
-        return package_json.get("version", "")
 
     def process_authorization(self, builder: AuthorizationBuilder) -> Transaction:
         """
@@ -900,16 +891,16 @@ class GpApiConnector(RestGateway):
             access_token_info.data_account_id = response.get_data_account_id()
 
         if (
-                not access_token_info.tokenization_account_id
-                and not access_token_info.tokenization_account_name
+            not access_token_info.tokenization_account_id
+            and not access_token_info.tokenization_account_name
         ):
             access_token_info.tokenization_account_id = (
                 response.get_tokenization_account_id()
             )
 
         if (
-                not access_token_info.transaction_processing_account_id
-                and not access_token_info.transaction_processing_account_name
+            not access_token_info.transaction_processing_account_id
+            and not access_token_info.transaction_processing_account_name
         ):
             access_token_info.transaction_processing_account_id = (
                 response.get_transaction_processing_account_id()
@@ -919,24 +910,24 @@ class GpApiConnector(RestGateway):
             )
 
         if (
-                not access_token_info.dispute_management_account_id
-                and not access_token_info.dispute_management_account_name
+            not access_token_info.dispute_management_account_id
+            and not access_token_info.dispute_management_account_name
         ):
             access_token_info.dispute_management_account_id = (
                 response.get_dispute_management_account_id()
             )
 
         if (
-                not access_token_info.risk_assessment_account_id
-                and not access_token_info.risk_assessment_account_name
+            not access_token_info.risk_assessment_account_id
+            and not access_token_info.risk_assessment_account_name
         ):
             access_token_info.risk_assessment_account_id = (
                 response.get_risk_assessment_account_id()
             )
 
         if (
-                not access_token_info.merchant_management_account_id
-                and not access_token_info.merchant_management_account_name
+            not access_token_info.merchant_management_account_id
+            and not access_token_info.merchant_management_account_name
         ):
             access_token_info.merchant_management_account_id = (
                 response.get_merchant_management_account_id()
@@ -1057,19 +1048,19 @@ class GpApiConnector(RestGateway):
 
     def get_merchant_url(self, request: GpApiRequest) -> str:
         if (
-                not self.gpApiConfig.merchant_id
-                and GpApiRequest.MERCHANT_MANAGEMENT_ENDPOINT in request.endpoint
+            not self.gpApiConfig.merchant_id
+            and GpApiRequest.MERCHANT_MANAGEMENT_ENDPOINT in request.endpoint
         ):
             return f"{GpApiRequest.MERCHANT_MANAGEMENT_ENDPOINT}/{self.gpApiConfig.merchant_id}"
         return ""
 
     def do_transaction(
-            self,
-            verb: str,
-            endpoint: str,
-            data: Optional[str] = None,
-            query_string_params: Optional[Dict[str, str]] = None,
-            idempotency_key: Optional[str] = None,
+        self,
+        verb: str,
+        endpoint: str,
+        data: Optional[str] = None,
+        query_string_params: Optional[Dict[str, str]] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Optional[str]:
         if not self.accessToken:
             self.sign_in()
@@ -1079,7 +1070,7 @@ class GpApiConnector(RestGateway):
 
         # Handle special case for settlement and disputes/challenge endpoints
         if "settlement" in endpoint or (
-                "disputes" in endpoint and "challenge" in endpoint
+            "disputes" in endpoint and "challenge" in endpoint
         ):
             self.content_type = ""
 
@@ -1090,9 +1081,9 @@ class GpApiConnector(RestGateway):
             response = super().do_transaction(verb, endpoint, data, query_string_params)
         except Exception as e:
             if (
-                    "NOT_AUTHENTICATED" in str(e)
-                    and self.gpApiConfig.app_key
-                    and self.gpApiConfig.app_key
+                "NOT_AUTHENTICATED" in str(e)
+                and self.gpApiConfig.app_key
+                and self.gpApiConfig.app_key
             ):
                 self.accessToken = ""
                 self.sign_in()
@@ -1175,17 +1166,17 @@ class PorticoConnector(XmlGateway):
 
         # build request
         if (
-                builder.transaction_type == TransactionType.Sale
-                or builder.transaction_type == TransactionType.Auth
-                or builder.transaction_type == TransactionType.Refund
+            builder.transaction_type == TransactionType.Sale
+            or builder.transaction_type == TransactionType.Auth
+            or builder.transaction_type == TransactionType.Refund
         ):
             if (
-                    builder.payment_method.payment_method_type != PaymentMethodType.Gift
-                    and builder.payment_method.payment_method_type != PaymentMethodType.ACH
+                builder.payment_method.payment_method_type != PaymentMethodType.Gift
+                and builder.payment_method.payment_method_type != PaymentMethodType.ACH
             ):
                 if (
-                        isinstance(builder.payment_method, RecurringPaymentMethod)
-                        and builder.payment_method.payment_type == "ACH"
+                    isinstance(builder.payment_method, RecurringPaymentMethod)
+                    and builder.payment_method.payment_type == "ACH"
                 ):
                     pass
                 else:
@@ -1193,16 +1184,16 @@ class PorticoConnector(XmlGateway):
                         "Y" if builder.allow_duplicates else "N"
                     )
                     if (
-                            builder.transaction_type != TransactionType.Refund
-                            and (
+                        builder.transaction_type != TransactionType.Refund
+                        and (
                             builder.transaction_modifier
                             == TransactionModifier.NoModifier
                             or not builder.transaction_modifier
-                    )
-                            and builder.payment_method.payment_method_type
-                            != PaymentMethodType.EBT
-                            and builder.payment_method.payment_method_type
-                            != PaymentMethodType.Recurring
+                        )
+                        and builder.payment_method.payment_method_type
+                        != PaymentMethodType.EBT
+                        and builder.payment_method.payment_method_type
+                        != PaymentMethodType.Recurring
                     ):
                         et.SubElement(block1, "AllowPartialAuth").text = (
                             "Y" if builder.allow_partial_auth else "N"
@@ -1210,12 +1201,12 @@ class PorticoConnector(XmlGateway):
 
             # AmountIndicator for Credit transactions
             if (
-                    builder.payment_method.payment_method_type == PaymentMethodType.Credit
-                    and (
+                builder.payment_method.payment_method_type == PaymentMethodType.Credit
+                and (
                     builder.transaction_modifier == TransactionModifier.NoModifier
                     or not builder.transaction_modifier
-            )
-                    and builder.amount_estimated is not None
+                )
+                and builder.amount_estimated is not None
             ):
                 et.SubElement(block1, "AmountIndicator").text = (
                     "E" if builder.amount_estimated else "F"
@@ -1242,7 +1233,7 @@ class PorticoConnector(XmlGateway):
                 (
                     "CashbackAmtInfo"
                     if builder.payment_method.payment_method_type
-                       == PaymentMethodType.Debit
+                    == PaymentMethodType.Debit
                     else "CashBackAmount"
                 ),
             ).text = str(builder.cash_back_amount)
@@ -1273,7 +1264,7 @@ class PorticoConnector(XmlGateway):
                 et.SubElement(
                     holder, "State" if is_check else "CardHolderState"
                 ).text = (
-                        builder.billing_address.province or builder.billing_address.state
+                    builder.billing_address.province or builder.billing_address.state
                 )
                 et.SubElement(holder, "Zip" if is_check else "CardHolderZip").text = (
                     builder.billing_address.postal_code
@@ -1303,16 +1294,16 @@ class PorticoConnector(XmlGateway):
         # because debit
         card_data = None
         if (
-                builder.payment_method.payment_method_type == PaymentMethodType.Debit
-                or builder.payment_method.payment_method_type == PaymentMethodType.ACH
+            builder.payment_method.payment_method_type == PaymentMethodType.Debit
+            or builder.payment_method.payment_method_type == PaymentMethodType.ACH
         ):
             card_data = block1
         else:
             card_data = et.Element("CardData")
 
         if (
-                self._has_attr(builder.payment_method, "is_card_data")
-                and builder.payment_method.is_card_data
+            self._has_attr(builder.payment_method, "is_card_data")
+            and builder.payment_method.is_card_data
         ):
             card = builder.payment_method
 
@@ -1320,10 +1311,10 @@ class PorticoConnector(XmlGateway):
                 card_data, "TokenData" if has_token else "ManualEntry"
             )
             if self._should_include_credential_on_file(builder) and (
-                    hasattr(builder, "card_brand_transaction_id")
-                    and builder.card_brand_transaction_id
-                    or hasattr(builder, "transaction_initiator")
-                    and builder.transaction_initiator
+                hasattr(builder, "card_brand_transaction_id")
+                and builder.card_brand_transaction_id
+                or hasattr(builder, "transaction_initiator")
+                and builder.transaction_initiator
             ):
                 block1.append(self._hydrate_credential_on_file(builder))
 
@@ -1351,7 +1342,7 @@ class PorticoConnector(XmlGateway):
                 secure_ecom = card.three_d_secure
 
                 if (secure_ecom is not None) and (
-                        isinstance(secure_ecom, ECommerceInfo)
+                    isinstance(secure_ecom, ECommerceInfo)
                 ):
                     secure_ecommerce = et.SubElement(block1, "SecureECommerce")
                     et.SubElement(secure_ecommerce, "PaymentDataSource").text = (
@@ -1368,7 +1359,7 @@ class PorticoConnector(XmlGateway):
                     )
                     et.SubElement(secure_ecommerce, "XID").text = secure_ecom.xid
                 elif (card.three_d_secure is not None) and (
-                        isinstance(card.three_d_secure, ThreeDSecure)
+                    isinstance(card.three_d_secure, ThreeDSecure)
                 ):
                     mpi = et.SubElement(block1, "Secure3D")
                     et.SubElement(mpi, "Version").text = (
@@ -1392,8 +1383,8 @@ class PorticoConnector(XmlGateway):
                 )
 
         elif (
-                self._has_attr(builder.payment_method, "is_track_data")
-                and builder.payment_method.is_track_data
+            self._has_attr(builder.payment_method, "is_track_data")
+            and builder.payment_method.is_track_data
         ):
             track = builder.payment_method
 
@@ -1407,7 +1398,7 @@ class PorticoConnector(XmlGateway):
                     (
                         "proximity"
                         if self._has_attr(track, "entry_method")
-                           and track.entry_method == EntryMethod.Proximity
+                        and track.entry_method == EntryMethod.Proximity
                         else "swipe"
                     ),
                 )
@@ -1547,7 +1538,7 @@ class PorticoConnector(XmlGateway):
             # payment method stuff
             et.SubElement(block1, "PaymentMethodKey").text = method.key
             if method.payment_method is not None and isinstance(
-                    method.payment_method, CreditCardData
+                method.payment_method, CreditCardData
             ):
                 card = method.payment_method
                 data = et.SubElement(block1, "PaymentMethodKeyData")
@@ -1557,10 +1548,10 @@ class PorticoConnector(XmlGateway):
 
                 # Add the credential on file logic
                 if self._should_include_credential_on_file(builder) and (
-                        hasattr(builder, "card_brand_transaction_id")
-                        and builder.card_brand_transaction_id
-                        or hasattr(builder, "transaction_initiator")
-                        and builder.transaction_initiator
+                    hasattr(builder, "card_brand_transaction_id")
+                    and builder.card_brand_transaction_id
+                    or hasattr(builder, "transaction_initiator")
+                    and builder.transaction_initiator
                 ):
                     block1.append(self._hydrate_credential_on_file(builder))
 
@@ -1597,8 +1588,8 @@ class PorticoConnector(XmlGateway):
 
         # set token flag
         if (
-                self._has_attr(builder.payment_method, "tokenizable")
-                and builder.payment_method.tokenizable
+            self._has_attr(builder.payment_method, "tokenizable")
+            and builder.payment_method.tokenizable
         ):
             et.SubElement(card_data, "TokenRequest").text = (
                 "Y" if builder.request_multi_use_token else "N"
@@ -1616,9 +1607,9 @@ class PorticoConnector(XmlGateway):
 
         # details
         if (
-                builder.customer_id is not None
-                or builder.description is not None
-                or builder.invoice_number is not None
+            builder.customer_id is not None
+            or builder.description is not None
+            or builder.invoice_number is not None
         ):
             addons = et.SubElement(block1, "AdditionalTxnFields")
             et.SubElement(addons, "CustomerID").text = builder.customer_id
@@ -1632,8 +1623,8 @@ class PorticoConnector(XmlGateway):
             )
 
             if (
-                    builder.invoice_number is not None
-                    or builder.ecommerce_info.ship_month is not None
+                builder.invoice_number is not None
+                or builder.ecommerce_info.ship_month is not None
             ):
                 direct = et.SubElement(block1, "DirectMktData")
                 et.SubElement(direct, "DirectMktInvoiceNbr").text = (
@@ -1667,10 +1658,10 @@ class PorticoConnector(XmlGateway):
             root = None
 
             if (
-                    builder.transaction_type == TransactionType.Reversal
-                    or builder.transaction_type == TransactionType.Refund
-                    or builder.payment_method.payment_method_type == PaymentMethodType.Gift
-                    or builder.payment_method.payment_method_type == PaymentMethodType.ACH
+                builder.transaction_type == TransactionType.Reversal
+                or builder.transaction_type == TransactionType.Refund
+                or builder.payment_method.payment_method_type == PaymentMethodType.Gift
+                or builder.payment_method.payment_method_type == PaymentMethodType.ACH
             ):
                 root = et.SubElement(transaction, "Block1")
             else:
@@ -1689,22 +1680,22 @@ class PorticoConnector(XmlGateway):
 
             # transaction id
             if (
-                    builder.transaction_type != TransactionType.TokenUpdate
-                    and builder.transaction_type != TransactionType.TokenDelete
+                builder.transaction_type != TransactionType.TokenUpdate
+                and builder.transaction_type != TransactionType.TokenDelete
             ):
                 et.SubElement(root, "GatewayTxnId").text = builder.transaction_id
 
             # client transaction id
             if (
-                    builder.transaction_type == TransactionType.Reversal
-                    and builder.client_transaction_id
+                builder.transaction_type == TransactionType.Reversal
+                and builder.client_transaction_id
             ):
                 et.SubElement(root, "ClientTxnId").text = builder.client_transaction_id
 
             # cpc data
             if (
-                    builder.transaction_type == TransactionType.Edit
-                    and builder.transaction_modifier == TransactionModifier.LevelII
+                builder.transaction_type == TransactionType.Edit
+                and builder.transaction_modifier == TransactionModifier.LevelII
             ):
                 cpc = et.SubElement(root, "CPCData")
                 if builder.po_number:
@@ -1749,8 +1740,8 @@ class PorticoConnector(XmlGateway):
         )
 
         if (
-                builder.transaction_type == TransactionType.TokenUpdate
-                or builder.transaction_type == TransactionType.TokenDelete
+            builder.transaction_type == TransactionType.TokenUpdate
+            or builder.transaction_type == TransactionType.TokenDelete
         ):
             return True
 
@@ -1827,7 +1818,7 @@ class PorticoConnector(XmlGateway):
             et.SubElement(header, "SDKNameVersion").text = str(self.sdkNameVersion)
         else:
             et.SubElement(header, "SDKNameVersion").text = str("python;version=") + str(
-                self._get_release_version()
+                get_release_version()
             )
 
         trans = et.SubElement(version1, "Transaction")
@@ -1851,16 +1842,16 @@ class PorticoConnector(XmlGateway):
         cof = et.Element("CardOnFileData")
 
         if (
-                hasattr(auth_builder, "transaction_initiator")
-                and auth_builder.transaction_initiator
+            hasattr(auth_builder, "transaction_initiator")
+            and auth_builder.transaction_initiator
         ):
             et.SubElement(cof, "CardOnFile").text = (
                 auth_builder.transaction_initiator.value
             )
 
         if (
-                hasattr(auth_builder, "card_brand_transaction_id")
-                and auth_builder.card_brand_transaction_id
+            hasattr(auth_builder, "card_brand_transaction_id")
+            and auth_builder.card_brand_transaction_id
         ):
             et.SubElement(cof, "CardBrandTxnId").text = (
                 auth_builder.card_brand_transaction_id
@@ -2026,7 +2017,7 @@ class PorticoConnector(XmlGateway):
         return result
 
     def _map_report_response(
-            self, raw_response, report_type: Optional[ReportType] = None
+        self, raw_response, report_type: Optional[ReportType] = None
     ):
         if report_type is None:
             return None
@@ -2092,9 +2083,9 @@ class PorticoConnector(XmlGateway):
             ret = "CreditAddToBatch"
         elif builder.transaction_type == TransactionType.Auth:
             if (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Credit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
             ):
                 if builder.transaction_modifier == TransactionModifier.Additional:
                     ret = "CreditAdditionalAuth"
@@ -2107,16 +2098,16 @@ class PorticoConnector(XmlGateway):
                 else:
                     ret = "CreditAuth"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Recurring
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Recurring
             ):
                 ret = "RecurringBillingAuth"
         elif builder.transaction_type == TransactionType.Sale:
             if (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Credit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
             ):
                 if builder.transaction_modifier == TransactionModifier.Offline:
                     ret = "CreditOfflineSale"
@@ -2125,33 +2116,33 @@ class PorticoConnector(XmlGateway):
                 else:
                     ret = "CreditSale"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Recurring
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Recurring
             ):
                 if builder.payment_method.payment_type == "ACH":
                     ret = "CheckSale"
                 else:
                     ret = "RecurringBilling"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Debit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
             ):
                 ret = "DebitSale"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.Cash
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Cash
             ):
                 ret = "CashSale"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.ACH
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.ACH
             ):
                 ret = "CheckSale"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.EBT
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.EBT
             ):
                 if builder.transaction_modifier == TransactionModifier.CashBack:
                     ret = "EBTCashBackPurchase"
@@ -2160,55 +2151,55 @@ class PorticoConnector(XmlGateway):
                 else:
                     ret = "EBTFSPurchase"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
             ):
                 ret = "GiftCardSale"
         elif builder.transaction_type == TransactionType.Refund:
             if (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Credit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
             ):
                 ret = "CreditReturn"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Debit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
             ):
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
                 ret = "DebitReturn"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.Cash
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Cash
             ):
                 ret = "CashReturn"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.EBT
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.EBT
             ):
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
                 ret = "EBTFSReturn"
         elif builder.transaction_type == TransactionType.Reversal:
             if (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Credit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
             ):
                 ret = "CreditReversal"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Debit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
             ):
                 if isinstance(builder.payment_method, TransactionReference):
                     raise UnsupportedTransactionException()
                 ret = "DebitReversal"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
             ):
                 ret = "GiftCardReversal"
         elif builder.transaction_type == TransactionType.Edit:
@@ -2218,54 +2209,54 @@ class PorticoConnector(XmlGateway):
                 ret = "CreditTxnEdit"
         elif builder.transaction_type == TransactionType.Void:
             if (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Credit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
             ):
                 ret = "CreditVoid"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.ACH
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.ACH
             ):
                 ret = "CheckVoid"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
             ):
                 ret = "GiftCardVoid"
         elif builder.transaction_type == TransactionType.AddValue:
             if (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Credit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
             ):
                 ret = "PrePaidAddValue"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Debit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Debit
             ):
                 ret = "DebitAddValue"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
             ):
                 ret = "GiftCardAddValue"
         elif builder.transaction_type == TransactionType.Balance:
             if (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type
-                    == PaymentMethodType.Credit
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type
+                == PaymentMethodType.Credit
             ):
                 ret = "PrePaidBalanceInquiry"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.EBT
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.EBT
             ):
                 ret = "EBTBalanceInquiry"
             elif (
-                    builder.payment_method is not None
-                    and builder.payment_method.payment_method_type == PaymentMethodType.Gift
+                builder.payment_method is not None
+                and builder.payment_method.payment_method_type == PaymentMethodType.Gift
             ):
                 ret = "GiftCardBalance"
         elif builder.transaction_type == TransactionType.BenefitWithdrawal:
@@ -2393,11 +2384,6 @@ class PorticoConnector(XmlGateway):
             return getattr(obj, attr)
         except AttributeError as _exc:
             return False
-
-    def _get_release_version(self):
-        if "site-packages" in __file__:
-            return version("GlobalPayments.Api")
-        return "0.0.0"
 
 
 class RealexConnector(XmlGateway):
@@ -2559,8 +2545,8 @@ class RealexConnector(XmlGateway):
             )
 
         if (
-                builder.transaction_type == TransactionType.Sale
-                or builder.transaction_type == TransactionType.Auth
+            builder.transaction_type == TransactionType.Sale
+            or builder.transaction_type == TransactionType.Auth
         ):
             auto_settle = (
                 "1" if builder.transaction_type == TransactionType.Sale else "0"
@@ -2585,12 +2571,12 @@ class RealexConnector(XmlGateway):
 
         # tssinfo
         if (
-                builder.customer_id is not None
-                or builder.product_id is not None
-                or builder.customer_ip_address is not None
-                or builder.client_transaction_id is not None
-                or builder.billing_address is not None
-                or builder.shipping_address is not None
+            builder.customer_id is not None
+            or builder.product_id is not None
+            or builder.customer_ip_address is not None
+            or builder.client_transaction_id is not None
+            or builder.billing_address is not None
+            or builder.shipping_address is not None
         ):
             tss_info = et.SubElement(request, "tssinfo")
             et.SubElement(tss_info, "custnum").text = builder.customer_id
@@ -2622,8 +2608,8 @@ class RealexConnector(XmlGateway):
         encoder = lambda x: (
             x
             if self.hosted_payment_config is not None
-               and getattr(self.hosted_payment_config, "hpp_version", None)
-               == HppVersion.VERSION_2
+            and getattr(self.hosted_payment_config, "hpp_version", None)
+            == HppVersion.VERSION_2
             else lambda x: base64.b64encode(bytearray(x.encode()))
         )
         request = {}
@@ -2683,8 +2669,8 @@ class RealexConnector(XmlGateway):
             request["CUST_NUM"] = encoder(builder.hosted_payment_data.customer_number)
 
             if (
-                    self.hosted_payment_config.display_saved_cards is not None
-                    and builder.hosted_payment_data.customer_key is not None
+                self.hosted_payment_config.display_saved_cards is not None
+                and builder.hosted_payment_data.customer_key is not None
             ):
                 request["HPP_SELECT_STORED_CARD"] = encoder(
                     builder.hosted_payment_data.customer_key
@@ -2755,12 +2741,12 @@ class RealexConnector(XmlGateway):
         ]
 
         if (
-                self.hosted_payment_config.card_storage_enabled
-                or (
+            self.hosted_payment_config.card_storage_enabled
+            or (
                 builder.hosted_payment_data is not None
                 and builder.hosted_payment_data.offer_to_save_card
-        )
-                or self.hosted_payment_config.display_saved_cards
+            )
+            or self.hosted_payment_config.display_saved_cards
         ):
             to_hash.append(str(builder.hosted_payment_data.customer_key))
             to_hash.append(str(builder.hosted_payment_data.payment_key))
@@ -2865,8 +2851,8 @@ class RealexConnector(XmlGateway):
         et.SubElement(request, "orderid").text = order_id
 
         if (
-                builder.transaction_type == TransactionType.Create
-                or builder.transaction_type == TransactionType.Edit
+            builder.transaction_type == TransactionType.Create
+            or builder.transaction_type == TransactionType.Edit
         ):
             if isinstance(builder.entity, Customer):
                 customer = builder.entity

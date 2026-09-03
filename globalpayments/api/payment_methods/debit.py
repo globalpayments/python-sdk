@@ -8,6 +8,7 @@ from typing import Optional, Union
 import globalpayments as gp
 from globalpayments.api.entities.encryption_data import EncryptionData
 from globalpayments.api.entities.enums import (
+    EntryMethod,
     PaymentMethodType,
     TransactionType,
 )
@@ -19,6 +20,7 @@ class DebitTrackData(object):
     payment_method_type: PaymentMethodType = field(default=PaymentMethodType.Debit)
     pin_block: Optional[str] = field(default=None)
     value: Optional[str] = field(default=None)
+    entry_method: Optional[EntryMethod] = field(default=None)
 
     @property
     def is_track_data(self) -> bool:

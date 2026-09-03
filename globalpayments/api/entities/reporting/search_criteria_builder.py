@@ -70,10 +70,12 @@ class SearchCriteriaBuilder:
         self.currency: Optional[str] = None
         self.customerId: Optional[str] = None
         self.depositId: Optional[str] = None
+        self.deposit_id: Optional[str] = None
         self.depositReference: Optional[str] = None
         self.depositStatus: Optional[str] = None
         self.displayName: Optional[str] = None
         self.disputeId: Optional[str] = None
+        self.dispute_id: Optional[str] = None
         self.disputeDocumentId: Optional[str] = None
         self.disputeStage: Optional[DisputeStage] = None
         self.disputeStatus: Optional[DisputeStatus] = None
@@ -108,7 +110,9 @@ class SearchCriteriaBuilder:
         self.transactionType: Optional[List[TransactionType]] = None
         self.settlementAmount: Optional[float] = None
         self.settlementDisputeId: Optional[str] = None
+        self.settlement_dispute_id: Optional[str] = None
         self.storedPaymentMethodId: Optional[str] = None
+        self.stored_payment_method_id: Optional[str] = None
         self.storedPaymentMethodStatus: Optional[str] = None
         self.scheduleId: Optional[str] = None
         self.siteTrace: Optional[str] = None
@@ -143,9 +147,7 @@ class SearchCriteriaBuilder:
         self.riskAssessmentMode: Optional[FraudFilterMode] = None
         self.riskAssessmentReasonCode: Optional[ReasonCode] = None
 
-    def and_with(
-        self, criteria_enum: SearchCriteria, value: Any
-    ) -> "SearchCriteriaBuilder":
+    def and_with(self, criteria_enum: Any, value: Any) -> "SearchCriteriaBuilder":
         """
         Set a search criteria attribute with the given value
 

@@ -711,7 +711,7 @@ class RecurringBuilder(TransactionBuilder):
 class ReportBuilder(BaseBuilder):
     report_type: Optional[ReportType] = None
     timezone_conversion: Any = None
-    search_criteria: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    search_criteria: Optional[Dict[str, Any]] = dataclasses.field(default_factory=dict)
     page: Optional[int] = None
     page_size: Optional[int] = None
 
@@ -843,6 +843,7 @@ class TransactionReportBuilder(ReportBuilder):
                 self.search_criteria = {}
             self.search_criteria[criteria] = value
             self.search_builder.and_with(criteria_enum, value)
+        assert self.search_builder is not None
         return self.search_builder
 
     def order_by(

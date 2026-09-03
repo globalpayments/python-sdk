@@ -9,7 +9,7 @@ from tests.integration.gateways.GpApi_connector import (
     gpapi_test_credit_card_not_present,
     gpapi_test_debit,
     gpapi_test_3DSecure,
-    gpapi_test_installments
+    gpapi_test_installments,
 )
 from tests.integration.gateways.portico_connector import (
     test_credit,
@@ -21,6 +21,8 @@ from tests.integration.gateways.portico_connector import (
     test_reporting,
     test_token_management,
 )
+from tests.integration.gateways.ci.gpapi import gpapi_test_ci_transactions
+from tests.integration.gateways.ci.portico import test_ci_credit
 
 
 def run_tests():
@@ -51,6 +53,16 @@ def gpapi_tests():
     suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_reporting_transactions))
     suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_3DSecure))
     suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_installments))
+
+    # Run all tests in the suite
+    TextTestRunner().run(suite)
+
+
+def ci_tests():
+    suite = TestSuite()
+    # Add CI test modules to the suite
+    suite.addTests(TestLoader().loadTestsFromModule(gpapi_test_ci_transactions))
+    suite.addTests(TestLoader().loadTestsFromModule(test_ci_credit))
 
     # Run all tests in the suite
     TextTestRunner().run(suite)

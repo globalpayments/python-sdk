@@ -563,7 +563,7 @@ class GpApiSecureRequestBuilder(IRequestBuilder):
             AuthenticationSource,
         )
 
-        request_data = {
+        request_data: Dict[str, Any] = {
             "three_ds": {
                 "source": StringUtils.convert_enum_value(builder.authentication_source),
                 "preference": StringUtils.convert_enum_value(

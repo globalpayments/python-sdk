@@ -3,10 +3,13 @@ Class for storing dispute summary information
 """
 
 from datetime import datetime
-from typing import Optional, List, Union
+from typing import Optional, List, Union, TYPE_CHECKING
 
 from ...entities.dispute_document import DisputeDocument
 from ...entities.enums import TransactionType
+
+if TYPE_CHECKING:
+    from ...builders import ManagementBuilder
 
 
 class DisputeSummary:

@@ -12,7 +12,8 @@ from globalpayments.api.entities.enums import (
     GatewayProvider,
     TransactionType,
     TransactionModifier,
-    HttpVerb, PaymentMethodType,
+    HttpVerb,
+    PaymentMethodType,
 )
 from globalpayments.api.entities.gp_api.gp_api_request import GpApiRequest
 from globalpayments.api.utils import GenerationUtils, StringUtils
@@ -80,16 +81,16 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         verb = HttpVerb.POST
 
         if (
-                builder.transaction_type == TransactionType.Sale
-                or builder.transaction_type == TransactionType.Refund
-                or builder.transaction_type == TransactionType.Auth
+            builder.transaction_type == TransactionType.Sale
+            or builder.transaction_type == TransactionType.Refund
+            or builder.transaction_type == TransactionType.Auth
         ):
             endpoint = GpApiRequest.TRANSACTION_ENDPOINT
             request_data = self.create_from_authorization_builder(builder, config)
 
         elif builder.transaction_type == TransactionType.Verify:
             if builder.request_multi_use_token and not getattr(
-                    builder.payment_method, "token", None
+                builder.payment_method, "token", None
             ):
                 endpoint = GpApiRequest.PAYMENT_METHODS_ENDPOINT
                 expiry_year = None
@@ -104,7 +105,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
                     "account_id": config.access_token_info.tokenization_account_id,
                     "name": builder.description,
                     "reference": builder.client_transaction_id
-                                 or GenerationUtils.generate_order_id(),
+                    or GenerationUtils.generate_order_id(),
                     "usage_mode": builder.payment_method_usage_mode,
                     "fingerprint_mode": (
                         builder.customer_data.device_fingerprint
@@ -170,7 +171,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
                 "currency": builder.currency,
                 "country": config.country,
                 "reference": builder.client_transaction_id
-                             or GenerationUtils.get_uuid(),
+                or GenerationUtils.get_uuid(),
                 "payment_method": self.create_payment_method_param(builder, config),
             }
 
@@ -199,7 +200,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         return None
 
     def generate_verification_request(
-            self, builder: Any, config: Any
+        self, builder: Any, config: Any
     ) -> Dict[str, Any]:
         """
         Generates a verification request
@@ -266,9 +267,9 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         # Handle different payment method types
         if isinstance(payment_method_container, Credit):
             if (
-                    hasattr(builder, "customer_data")
-                    and builder.customer_data
-                    and hasattr(builder.customer_data, "device_fingerprint")
+                hasattr(builder, "customer_data")
+                and builder.customer_data
+                and hasattr(builder.customer_data, "device_fingerprint")
             ):
                 payment_method["fingerprint_mode"] = (
                     builder.customer_data.device_fingerprint
@@ -276,7 +277,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
             # Handle 3DS
             if hasattr(payment_method_container, "three_d_secure") and getattr(
-                    payment_method_container, "three_d_secure", None
+                payment_method_container, "three_d_secure", None
             ):
                 secure_ecom = getattr(payment_method_container, "three_d_secure", None)
                 payment_method["authentication"] = {
@@ -369,7 +370,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
             }
 
             if hasattr(payment_method_container, "address_override_mode") and getattr(
-                    payment_method_container, "address_override_mode", None
+                payment_method_container, "address_override_mode", None
             ):
                 payment_method["apm"]["address_override_mode"] = getattr(
                     payment_method_container, "address_override_mode", None
@@ -383,7 +384,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
             TransactionModifier.DecryptedMobile,
         ]:
             if hasattr(payment_method_container, "token") and getattr(
-                    payment_method_container, "token", None
+                payment_method_container, "token", None
             ):
                 payment_method["id"] = getattr(payment_method_container, "token", None)
 
@@ -403,9 +404,9 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
                 payment_token = None
                 if (
-                        hasattr(payment_method_container, "mobile_type")
-                        and getattr(payment_method_container, "mobile_type", False)
-                        == "CLICK_TO_PAY"
+                    hasattr(payment_method_container, "mobile_type")
+                    and getattr(payment_method_container, "mobile_type", False)
+                    == "CLICK_TO_PAY"
                 ):
                     payment_token = {
                         "data": getattr(payment_method_container, "token", None)
@@ -429,8 +430,8 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
         # Add card brand transaction ID if present
         if (
-                hasattr(builder, "card_brand_transaction_id")
-                and builder.card_brand_transaction_id
+            hasattr(builder, "card_brand_transaction_id")
+            and builder.card_brand_transaction_id
         ):
             if "card" not in payment_method:
                 from globalpayments.api.entities.gp_api.DTO.card import Card
@@ -443,21 +444,29 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         if builder.request_multi_use_token:
             payment_method["storage_mode"] = "ON_SUCCESS"
 
-        if "card" in payment_method and builder.transaction_type not in [TransactionType.Tokenize,
-                                                                         TransactionType.Verify]:
+        if "card" in payment_method and builder.transaction_type not in [
+            TransactionType.Tokenize,
+            TransactionType.Verify,
+        ]:
             card = payment_method["card"]
-            card.funding = "DEBIT" if builder.payment_method.payment_method_type == PaymentMethodType.Debit else "CREDIT"
+            card.funding = (
+                "DEBIT"
+                if builder.payment_method.payment_method_type == PaymentMethodType.Debit
+                else "CREDIT"
+            )
 
         if "card" in payment_method:
             card = payment_method["card"]
             card_dict = card.__dict__
-            payment_method["card"] = {k: v for k, v in card_dict.items() if v is not None}
+            payment_method["card"] = {
+                k: v for k, v in card_dict.items() if v is not None
+            }
         # Filter out None values
         payment_method = {k: v for k, v in payment_method.items() if v is not None}
         return payment_method
 
     def create_from_authorization_builder(
-            self, builder: Any, config: Any
+        self, builder: Any, config: Any
     ) -> Dict[str, Any]:
         """
         Creates a request from an authorization builder
@@ -495,9 +504,9 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
         # Add masked data response for ClickToPay
         if (
-                isinstance(builder.payment_method, Credit)
-                and hasattr(builder.payment_method, "mobile_type")
-                and getattr(builder.payment_method, "mobile_type", None) == "CLICK_TO_PAY"
+            isinstance(builder.payment_method, Credit)
+            and hasattr(builder.payment_method, "mobile_type")
+            and getattr(builder.payment_method, "mobile_type", None) == "CLICK_TO_PAY"
         ):
             request_body["masked"] = (
                 "YES" if getattr(builder, "masked_data_response", False) else "NO"
@@ -598,9 +607,9 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
             # Set installment data
             if (
-                    getattr(builder, "installment_data", None) is not None
-                    and builder.stored_credential.type
-                    and builder.stored_credential.type.upper() == "INSTALLMENT"
+                getattr(builder, "installment_data", None) is not None
+                and builder.stored_credential.type
+                and builder.stored_credential.type.upper() == "INSTALLMENT"
             ):
                 request_body["installment"] = self._build_installment_data(
                     builder.installment_data
@@ -629,7 +638,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         }
 
     def set_order_information(
-            self, builder: Any, request: Dict[str, Any]
+        self, builder: Any, request: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Sets order information
@@ -786,8 +795,8 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         # Add insurance information from order details
         if hasattr(builder, "order_details"):
             if (
-                    hasattr(builder.order_details, "has_insurance")
-                    and builder.order_details.has_insurance is not None
+                hasattr(builder.order_details, "has_insurance")
+                and builder.order_details.has_insurance is not None
             ):
                 order["insurance_offered"] = (
                     "YES" if builder.order_details.has_insurance else "NO"
@@ -795,8 +804,8 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
             # Add insurance amount if available
             if (
-                    hasattr(builder.order_details, "insurance_amount")
-                    and builder.order_details.insurance_amount
+                hasattr(builder.order_details, "insurance_amount")
+                and builder.order_details.insurance_amount
             ):
                 order["insurance_amount"] = StringUtils.to_numeric(
                     str(builder.order_details.insurance_amount)
@@ -805,8 +814,8 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
             # Add handling amount if available
             if (
-                    hasattr(builder.order_details, "handling_amount")
-                    and builder.order_details.handling_amount
+                hasattr(builder.order_details, "handling_amount")
+                and builder.order_details.handling_amount
             ):
                 order["handling_amount"] = StringUtils.to_numeric(
                     str(builder.order_details.handling_amount)
@@ -827,7 +836,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         return order
 
     def set_request_stored_credentials(
-            self, stored_credential: Any, request: Dict[str, Any]
+        self, stored_credential: Any, request: Dict[str, Any]
     ) -> None:
         """
         Sets stored credential information in the request
@@ -864,7 +873,8 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
             ),
             "contract_reference": (
                 stored_credential.contract_reference
-                if hasattr(stored_credential, "contract_reference") and stored_credential.contract_reference
+                if hasattr(stored_credential, "contract_reference")
+                and stored_credential.contract_reference
                 else None
             ),
         }
@@ -895,9 +905,9 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         if hasattr(builder, "customer_id") and builder.customer_id:
             payer["id"] = builder.customer_id
         elif (
-                hasattr(builder, "customer_data")
-                and hasattr(builder.customer_data, "id")
-                and builder.customer_data.id
+            hasattr(builder, "customer_data")
+            and hasattr(builder.customer_data, "id")
+            and builder.customer_data.id
         ):
             payer["id"] = builder.customer_data.id
 
@@ -909,12 +919,12 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         if isinstance(builder.payment_method, AlternativePaymentMethod):
             # Add home phone if available
             if (
-                    hasattr(builder, "home_phone")
-                    and builder.home_phone
-                    and (
+                hasattr(builder, "home_phone")
+                and builder.home_phone
+                and (
                     hasattr(builder.home_phone, "country_code")
                     or hasattr(builder.home_phone, "number")
-            )
+                )
             ):
                 payer["home_phone"] = {}
 
@@ -934,12 +944,12 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
             # Add work phone if available
             if (
-                    hasattr(builder, "work_phone")
-                    and builder.work_phone
-                    and (
+                hasattr(builder, "work_phone")
+                and builder.work_phone
+                and (
                     hasattr(builder.work_phone, "country_code")
                     or hasattr(builder.work_phone, "number")
-            )
+                )
             ):
                 payer["work_phone"] = {}
 
@@ -977,10 +987,10 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
             # Add customer data
             if hasattr(builder, "customer_data") and builder.customer_data:
                 if (
-                        hasattr(builder.customer_data, "first_name")
-                        and hasattr(builder.customer_data, "last_name")
-                        and builder.customer_data.first_name
-                        and builder.customer_data.last_name
+                    hasattr(builder.customer_data, "first_name")
+                    and hasattr(builder.customer_data, "last_name")
+                    and builder.customer_data.first_name
+                    and builder.customer_data.last_name
                 ):
                     payer["name"] = (
                         f"{builder.customer_data.first_name} {builder.customer_data.last_name}"
@@ -1021,17 +1031,17 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
         phone_number = ""
 
         if (
-                hasattr(builder, "customer_data")
-                and hasattr(builder.customer_data, phone_key)
-                and builder.customer_data[phone_key]
+            hasattr(builder, "customer_data")
+            and hasattr(builder.customer_data, phone_key)
+            and builder.customer_data[phone_key]
         ):
             phone_country_code = builder.customer_data[phone_key].country_code
             phone_number = builder.customer_data[phone_key].number
 
         if (
-                phone_number == ""
-                and hasattr(builder, phone_key)
-                and getattr(builder, phone_key)
+            phone_number == ""
+            and hasattr(builder, phone_key)
+            and getattr(builder, phone_key)
         ):
             phone_country_code = getattr(builder, phone_key).country_code
             phone_number = getattr(builder, phone_key).number
@@ -1060,8 +1070,8 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
             if getattr(builder.payment_method, "is_track_data", False):
                 if builder.tag_data:
                     if (
-                            getattr(builder.payment_method, "entry_method", None)
-                            == "Proximity"
+                        getattr(builder.payment_method, "entry_method", None)
+                        == "Proximity"
                     ):
                         return "CONTACTLESS_CHIP"
                     return "CHIP"
@@ -1070,7 +1080,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
                     return "SWIPE"
 
             if getattr(builder.payment_method, "is_card_data", False) and getattr(
-                    builder.payment_method, "card_present", False
+                builder.payment_method, "card_present", False
             ):
                 return "MANUAL"
 
@@ -1083,26 +1093,26 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
                     return "ECOM"
 
                 if getattr(
-                        builder.payment_method, "reader_present", None
+                    builder.payment_method, "reader_present", None
                 ) == False and hasattr(builder.payment_method, "entry_method"):
                     if getattr(builder.payment_method, "entry_method", None) == "PHONE":
                         return "PHONE"
                     elif (
-                            getattr(builder.payment_method, "entry_method", None) == "MOTO"
+                        getattr(builder.payment_method, "entry_method", None) == "MOTO"
                     ):
                         return "MOTO"
                     elif (
-                            getattr(builder.payment_method, "entry_method", None) == "MAIL"
+                        getattr(builder.payment_method, "entry_method", None) == "MAIL"
                     ):
                         return "MAIL"
 
                 if (
-                        builder.transaction_modifier == TransactionModifier.EncryptedMobile
-                        and hasattr(builder.payment_method, "has_in_app_payment_data")
-                        and callable(
-                    getattr(builder.payment_method, "has_in_app_payment_data")
-                )
-                        and builder.payment_method.has_in_app_payment_data()
+                    builder.transaction_modifier == TransactionModifier.EncryptedMobile
+                    and hasattr(builder.payment_method, "has_in_app_payment_data")
+                    and callable(
+                        getattr(builder.payment_method, "has_in_app_payment_data")
+                    )
+                    and builder.payment_method.has_in_app_payment_data()
                 ):
                     return "IN_APP"
 
@@ -1146,7 +1156,7 @@ class GpApiAuthorizationRequestBuilder(IRequestBuilder):
 
     @staticmethod
     def _build_installment_data(
-            installment_data: "InstallmentData",
+        installment_data: "InstallmentData",
     ) -> Dict[str, str]:
         """
         Builds the installment data dictionary for the request.

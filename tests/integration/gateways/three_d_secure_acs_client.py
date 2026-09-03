@@ -69,8 +69,8 @@ class ThreeDSecureAcsClient:
 
         kvps.append(
             {
-                "key": message_type,
-                "value": quote(secure_ecom.payer_authentication_request, safe=""),
+                "key": message_type or "",
+                "value": quote(secure_ecom.payer_authentication_request or "", safe=""),
             }
         )
 
@@ -81,6 +81,7 @@ class ThreeDSecureAcsClient:
         kvps = [{"key": "get-status-type", "value": "true"}]
         max_retries = 10
         retry_count = 0
+        raw_response = ""
 
         while retry_count < max_retries:
             try:
@@ -175,15 +176,17 @@ class ThreeDSecureAcsClient:
             [
                 {
                     "key": "TermUrl",
-                    "value": quote(secure_ecom.challenge_return_url, safe=""),
+                    "value": quote(secure_ecom.challenge_return_url or "", safe=""),
                 },
                 {
-                    "key": secure_ecom.session_data_field_name,
-                    "value": secure_ecom.server_transaction_id,
+                    "key": secure_ecom.session_data_field_name or "",
+                    "value": secure_ecom.server_transaction_id or "",
                 },
                 {
-                    "key": secure_ecom.message_type,
-                    "value": quote(secure_ecom.payer_authentication_request, safe=""),
+                    "key": secure_ecom.message_type or "",
+                    "value": quote(
+                        secure_ecom.payer_authentication_request or "", safe=""
+                    ),
                 },
                 {
                     "key": "AuthenticationResultCode",

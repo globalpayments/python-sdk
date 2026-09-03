@@ -1,6 +1,9 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from globalpayments.api.entities.enums import ReportType
+
+if TYPE_CHECKING:
+    from globalpayments.api.builders import TransactionReportBuilder
 
 
 # Import inside methods to avoid circular imports
@@ -29,7 +32,7 @@ class ReportingService(object):
     def find_transactions_paged(
         page: int,
         page_size: int,
-        transaction_id: str = None,
+        transaction_id: Optional[str] = None,
     ) -> "TransactionReportBuilder":
         from globalpayments.api.builders import TransactionReportBuilder
 

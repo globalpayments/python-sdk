@@ -1,6 +1,13 @@
 # Changelog
 
-## Latest - v2.0.7 (02/18/26):
+## Latest - v2.0.8 (09/02/26):
+
+### Enhancements:
+
+- [GpApi] Enhanced tests and guardrails.
+- [Portico] Enhanced tests and guardrails.
+
+## v2.0.7 (02/18/26):
 
 ### Enhancements:
 
